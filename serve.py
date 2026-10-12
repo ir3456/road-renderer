@@ -44,4 +44,4 @@ class H(http.server.SimpleHTTPRequestHandler):
             return self.reply({'path': path})
         self.send_error(400)
 
-http.server.ThreadingHTTPServer(('', int(sys.argv[1]) if len(sys.argv) > 1 else 8000), H).serve_forever()
+http.server.ThreadingHTTPServer(('127.0.0.1', int(sys.argv[1]) if len(sys.argv) > 1 else 8000), H).serve_forever()
