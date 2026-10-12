@@ -58,16 +58,18 @@ def signal(x, y):
     return None
 
 def building(x, y):
+    """Front face 0..49, side face 50..63 receding to a vanishing point at eye level (y 56, 96 px right of the corner)."""
     if x < 50:
-        if x == 0 or y in (8, 63): return (40, 40, 48, 255)
         if y < 8: return None
+        if x == 0 or y in (8, 63): return (40, 40, 48, 255)
         if (y - 8) % 10 in (3, 4, 5, 6) and x % 8 in (2, 3, 4, 5) and y < 56: return (240, 232, 160, 255)
         if 52 <= y < 63 and 20 <= x < 28: return (72, 48, 32, 255)
         return (176, 120, 88, 255)
-    top = 8 - (x - 50) * 0.5
-    if y < top: return None
-    if x in (50, 63) or y == 63 or y < top + 1: return (40, 40, 48, 255)
-    if (y - 8) % 10 in (3, 4, 5, 6) and (x - 50) % 8 in (3, 4, 5, 6) and y < 56: return (208, 196, 128, 255)
+    top, bot = 8 + (x - 50) * 48 / 96, 63 - (x - 50) * 7 / 96
+    if y < top or y > bot: return None
+    if x in (50, 63) or y < top + 1 or y > bot - 1: return (40, 40, 48, 255)
+    yf = 8 + (y - top) / (bot - top) * 55
+    if int(yf - 8) % 10 in (3, 4, 5, 6) and (x - 50) in (3, 4, 5, 9, 10, 11) and yf < 56: return (208, 196, 128, 255)
     return (128, 84, 60, 255)
 
 def cliff(x, y):
@@ -78,21 +80,20 @@ def cliff(x, y):
     return None
 
 def cabin(x, y):
-    if x < 24:
-        if y < 10:
-            if abs(x - 11.5) <= y * 1.5 + 1: return (120, 56, 40, 255) if y % 2 else (104, 48, 36, 255)
-            return None
-        if y < 28:
-            if 19 <= y < 27 and 9 <= x < 14: return (64, 40, 24, 255)
-            if 13 <= y < 18 and (3 <= x < 8 or 16 <= x < 21): return (240, 232, 160, 255)
-            return (168, 120, 72, 255) if (y // 3) % 2 else (152, 108, 64, 255)
-        return None
-    top = 10 - (x - 24) * 0.5
-    if y < top or y >= 28: return None
-    if y < top + 2: return (104, 48, 36, 255)
-    if x == 31 or y == 27: return (64, 40, 24, 255)
-    if 13 <= y < 18 and 26 <= x < 30: return (208, 196, 128, 255)
-    return (136, 96, 56, 255) if (y // 3) % 2 else (120, 84, 48, 255)
+    """Gable front 0..21 with a 2 px roof overhang, side 22..31; ridge, eave and footing lines converge on eye level (y 17, 60 px right)."""
+    if y < 10 and abs(x - 10.5) <= y * 1.3 + 1: return (64, 40, 24, 255) if abs(x - 10.5) > y * 1.3 - 0.6 or y == 9 else (120, 56, 40, 255) if y % 2 else (104, 48, 36, 255)
+    if 10 <= y < 28 and x < 22:
+        if 19 <= y < 27 and 8 <= x < 13: return (64, 40, 24, 255)
+        if 13 <= y < 18 and (3 <= x < 7 or 15 <= x < 19): return (240, 232, 160, 255)
+        return (168, 120, 72, 255) if (y // 3) % 2 else (152, 108, 64, 255)
+    ridge, eave, foot = (x - 10.5) * 17 / 60, 10 + (x - 23) * 7 / 60, 27 - (x - 22) * 10 / 60
+    if 10 < x < 32 and ridge <= y < eave: return (104, 48, 36, 255) if y < ridge + 1 else (120, 56, 40, 255) if (x + y) % 3 else (112, 52, 38, 255)
+    if 22 <= x < 32 and eave <= y <= foot:
+        if x == 31 or y > foot - 1 or y < eave + 1: return (64, 40, 24, 255)
+        yf = 10 + (y - eave) / (foot - eave) * 17
+        if 13 <= yf < 18 and 24 <= x < 28: return (208, 196, 128, 255)
+        return (136, 96, 56, 255) if int(yf // 3) % 2 else (120, 84, 48, 255)
+    return None
 
 def rider_fn(tint):
     def f(x, y):
