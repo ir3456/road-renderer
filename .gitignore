@@ -4,4 +4,3 @@ strava_exports/
 .venv/
 __pycache__/
 .DS_Store
-strava.json
