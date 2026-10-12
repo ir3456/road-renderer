@@ -236,15 +236,20 @@ def way_info(tags):
 def level(tags): return (tags.get('bridge', 'no') != 'no', tags.get('tunnel', 'no') != 'no', tags.get('layer', '0'))
 
 
+def way_xy(e, cos0):
+    g = e.get('geometry')
+    return np.array([[R * math.radians(p['lon']) * cos0, R * math.radians(p['lat'])] for p in g]) if e['type'] == 'way' and g and len(g) > 1 else None
+
+
 def highways(elements, cos0):
     out = []
     for e in elements:
         tags = e.get('tags', {})
-        if e['type'] != 'way' or HWY_RANK.get(tags.get('highway', '').replace('_link', ''), -1) < 0: continue
+        if HWY_RANK.get(tags.get('highway', '').replace('_link', ''), -1) < 0: continue
         if tags.get('service') in ('driveway', 'parking_aisle'): continue
         if 'footway' in tags: continue
-        g = e.get('geometry')
-        if g and len(g) > 1: out.append((e, np.array([[R * math.radians(p['lon']) * cos0, R * math.radians(p['lat'])] for p in g])))
+        line = way_xy(e, cos0)
+        if line is not None: out.append((e, line))
     return out
 
 
@@ -352,6 +357,24 @@ def crossings(hwys, match, xs, ys, signals):
         for hit in tee_hits(line, cum, xs, ys, own, found) + cross_hits(line, cum, route, own, found):
             hits.append(crossing(*hit, e, hx, hy, signals))
     return merge_hits(hits)
+
+
+WATER_W = {'river': 12, 'canal': 6, 'stream': 3}
+
+
+def water_crossings(elements, cos0, xs, ys):
+    """Rivers, canals and streams the route passes over: {i, side LR, ang, kind water, rank 9, w, name?}; drawn like side roads, never filtered by level since the road bridges them."""
+    hx, hy = heading(xs, ys); route = np.column_stack([xs, ys]); out = []
+    for e in elements:
+        tags = e.get('tags', {}); line = tags.get('waterway') in WATER_W and way_xy(e, cos0)
+        if line is None or line is False: continue
+        cum = np.concatenate([[0], np.cumsum(np.hypot(*np.diff(line, axis=0).T))])
+        for i, px, py, dx, dy, side in cross_hits(line, cum, route, np.array([]), set()):
+            dot = hx[i] * dx + hy[i] * dy; cr = hx[i] * dy - hy[i] * dx
+            h = {'i': int(i), 'side': 'LR', 'ang': int(round(math.degrees(math.atan2(cr, dot)) % 180)), 'kind': 'water', 'rank': 9, 'w': WATER_W[tags['waterway']]}
+            if 'name' in tags: h['name'] = tags['name']
+            out.append(h)
+    return out
 
 
 # ---------------- DEM ----------------
@@ -465,6 +488,7 @@ def main():
             signals = [(e['tags']['highway'], R * math.radians(e['lon']) * cos0, R * math.radians(e['lat'])) for e in els if e['type'] == 'node' and 'lat' in e]
             lvl = [level(hwys[w][0]['tags']) for w in match]
             scene['xings'] = [x for x in crossings(hwys, match, xs, ys, signals) if x.pop('lvl') == lvl[x['i']]]
+            scene['xings'] = sorted(scene['xings'] + water_crossings(els, cos0, xs, ys), key=lambda x: x['i'])
         print(f'  {len(els)} elements, {len(scene.get("ways", []))} route ways, {len(scene.get("xings", []))} crossings', file=sys.stderr)
     if not a.no_terrain:
         print('USGS 3DEP', file=sys.stderr)

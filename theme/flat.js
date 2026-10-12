@@ -12,6 +12,7 @@ const pal = {
   edge: [[230, 230, 230], [200, 40, 40]], edgeWidth: 0.08,
   lane: [220, 220, 220], laneCenter: [200, 176, 60], laneWidth: 0.03,
   trail: [[120, 112, 96], [114, 106, 90]], dirt: [[122, 94, 60], [114, 88, 56]],
+  water: [[60, 110, 180], [54, 100, 166]],
 };
 
 export default theme('Flat', pal);

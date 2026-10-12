@@ -12,6 +12,7 @@ const pal = {
   edge: [[248, 248, 248], [224, 32, 32]], edgeWidth: 0.1,
   lane: [248, 248, 248], laneCenter: [232, 196, 48], laneWidth: 0.025,
   trail: [[156, 146, 122], [148, 138, 114]], dirt: [[158, 118, 72], [148, 110, 66]],
+  water: [[48, 120, 216], [40, 104, 192]],
 };
 
 export default theme('Arcade', pal);
