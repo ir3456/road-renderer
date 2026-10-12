@@ -31,7 +31,7 @@ OSM_DEG = 0.02
 OSM_LAYER = 'osm2'
 fetched = {'dem10': 0, 'dem60': 0, OSM_LAYER: 0}
 HWY_RANK = {'motorway': 6, 'trunk': 6, 'primary': 5, 'secondary': 4, 'tertiary': 3, 'residential': 2, 'unclassified': 2, 'living_street': 1, 'service': 1, 'pedestrian': 1, 'track': 0, 'cycleway': 0, 'path': 0, 'footway': 0, 'bridleway': 0, 'steps': 0}
-HWY_WIDTH = {'motorway': 14, 'trunk': 12, 'primary': 9, 'secondary': 9, 'tertiary': 8, 'residential': 8, 'unclassified': 7.5, 'living_street': 6, 'service': 5, 'pedestrian': 5, 'track': 3.5, 'cycleway': 3, 'path': 2.5, 'footway': 2, 'bridleway': 2.5, 'steps': 2}
+HWY_WIDTH = {'motorway': 14, 'trunk': 12, 'primary': 9, 'secondary': 9, 'tertiary': 8, 'residential': 8, 'unclassified': 7.5, 'living_street': 6, 'service': 4, 'pedestrian': 5, 'track': 3.5, 'cycleway': 3, 'path': 2.5, 'footway': 2, 'bridleway': 2.5, 'steps': 2}
 
 
 mirror = {}
@@ -213,13 +213,14 @@ def osm_tags(elements, xs, ys, cos0, lx, ly, rx, ry):
     return [j(s) for s in left], [j(s) for s in right]
 
 
-TRAIL = {'cycleway', 'path', 'footway', 'bridleway', 'pedestrian', 'steps'}
+TRAIL = {'cycleway', 'pedestrian'}
+PATH = {'path', 'footway', 'bridleway', 'steps'}
 UNPAVED = {'unpaved', 'gravel', 'dirt', 'ground', 'compacted', 'fine_gravel', 'sand', 'grass', 'earth', 'mud'}
 
 def way_info(tags):
-    """Road shape for the renderer, fully resolved so the scene file carries no OSM vocabulary: kind road|trail|dirt, rank, lanes, width (m), name, oneway, bridge, tunnel."""
+    """Road shape for the renderer, fully resolved so the scene file carries no OSM vocabulary: kind road|trail|path|dirt, rank, lanes, width (m), name, oneway, bridge, tunnel."""
     hwy = tags.get('highway', '').replace('_link', '')
-    kind = 'dirt' if hwy == 'track' or tags.get('surface') in UNPAVED else 'trail' if hwy in TRAIL else 'road'
+    kind = 'dirt' if hwy == 'track' or tags.get('surface') in UNPAVED else 'path' if hwy in PATH else 'trail' if hwy in TRAIL else 'road'
     try: lanes = int(float(tags['lanes']))
     except (KeyError, ValueError): lanes = None
     try: width = float(re.sub(r'[^\d.]', '', tags['width']))

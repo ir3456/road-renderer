@@ -13,10 +13,10 @@ export function drawJunctions(ctx, frame, P, pal) {
       const { a, b, fog } = q, ay = Math.min(a.sy, q.clipY), h = 0.3 / L * (a.sy - b.sy);
       ctx.fillStyle = mix(pal, (pal[x.kind] || pal.road)[0], fog);
       ctx.beginPath(); ctx.moveTo(inner(a, x.side), ay); ctx.lineTo(outer(a, x.side), ay); ctx.lineTo(outer(b, x.side), b.sy); ctx.lineTo(inner(b, x.side), b.sy); ctx.closePath(); ctx.fill();
-      if (x.kind !== 'road') continue;
+      if (x.kind !== 'road' || x.w < 6) continue;
       if (q.k === k0) line(a, x.side, ay - h / 2, h, mix(pal, pal.edge[0], fog));
       if (q.k === k1 - 1) line(b, x.side, b.sy + h / 2, h, mix(pal, pal.edge[0], fog));
-      if (q.k === mid && x.w >= 6) line(a, x.side, a.sy, h, mix(pal, pal.laneCenter, fog));
+      if (q.k === mid) line(a, x.side, a.sy, h, mix(pal, pal.laneCenter, fog));
     }
   }
 }

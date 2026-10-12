@@ -35,7 +35,7 @@ export const LEVERS = [
   { key: 'mapRoads',     label: 'Road width & lanes from map', options: { on: 'On', off: 'Off (use Road width)' }, def: 'on', rebuild: true },
   { key: 'roadScale',    label: 'Map road width scale',       min: 0.5, max: 3,  step: 0.1,  def: 2, rebuild: true },
   { key: 'junctions',    label: 'Intersections', options: { on: 'On', off: 'Off' }, def: 'on', rebuild: true },
-  { key: 'juncMin',      label: 'Smallest side road drawn', options: { all: 'Everything (paths, alleys)', streets: 'Streets and up', collector: 'Collectors and up' }, def: 'streets', rebuild: true },
+  { key: 'juncMin',      label: 'Smallest side road drawn', options: { all: 'Everything (paths, alleys)', streets: 'Streets and up', collector: 'Collectors and up' }, def: 'all', rebuild: true },
   { key: 'juncSigns',    label: 'Stop signs & signals', options: { on: 'On', off: 'Off' }, def: 'on', rebuild: true },
   { key: 'streetSigns',  label: 'Street name signs', options: { on: 'On', off: 'Off' }, def: 'on', rebuild: true },
   { group: 'Trainer' },

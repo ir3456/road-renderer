@@ -11,7 +11,7 @@ Frame contract consumed by themes:
     pts[k].tl / .tr                                 those heights projected: [[sx, sy] per profD], only when prof exists
     quads:   [{ i, k, a, b, fog, clipY, props }]    visible road slices, near to far
     skyline: { far: Float32Array(360), near } | null  elevation angle (deg) of the terrain horizon per math bearing
-    lanes / kind / oneway: per-segment road shape from the map, or null (kind: road | trail | dirt)
+    lanes / kind / oneway: per-segment road shape from the map, or null (kind: road | trail | path | dirt)
     junc:    Uint8Array | null                      per-segment mask: 1 = left roadside is a side street, 2 = right
     xings:   [{ i, rows, side, w, kind }] | null    side streets: start segment, rows along the route, side (-1 left, 1 right), width (m), kind
     actors:  [{ kind, k, frame, sx, sy, ppm, clip }] }  dynamic sprites (rider, ghost) already projected; frame = animation frame index
