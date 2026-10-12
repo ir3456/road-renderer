@@ -301,22 +301,32 @@ def tee_hits(line, cum, xs, ys, own, found):
     return out
 
 
+def ray_hits(p0, r, line, pad=8):
+    """Where the segments p0 + t*r (t in [0, 1)) cross the polyline's segments: arrays (ray index, polyline segment, t, u), computed in blocks."""
+    out = [[], [], [], []]
+    lo, hi = line.min(axis=0) - pad, line.max(axis=0) + pad
+    cand = np.flatnonzero((np.minimum(p0, p0 + r) <= hi).all(axis=1) & (np.maximum(p0, p0 + r) >= lo).all(axis=1))
+    q0 = line[:-1]; sg = line[1:] - q0
+    for c in np.array_split(cand, max(1, len(cand) * len(sg) // 200000 + 1)):
+        if not len(c): continue
+        pc, rc = p0[c], r[c]
+        denom = rc[:, None, 0] * sg[None, :, 1] - rc[:, None, 1] * sg[None, :, 0]; denom[denom == 0] = 1e-12
+        qp = q0[None, :, :] - pc[:, None, :]
+        t = (qp[:, :, 0] * sg[None, :, 1] - qp[:, :, 1] * sg[None, :, 0]) / denom
+        u = (qp[:, :, 0] * rc[:, None, 1] - qp[:, :, 1] * rc[:, None, 0]) / denom
+        a, b = np.nonzero((t >= 0) & (t < 1) & (u >= 0) & (u < 1))
+        for o, v in zip(out, (c[a], b, t[a, b], u[a, b])): o.append(v)
+    return [np.concatenate(o) if o else np.array([], int if k < 2 else float) for k, o in enumerate(out)]
+
+
 def cross_hits(line, cum, route, own, found):
     """Route segments that the way's segments intersect: (i, px, py, dx, dy, 'LR') with the way's direction over ±30 m around the crossing."""
-    out = []; pad = 8
+    out = []
     p0 = route[:-1]; r = route[1:] - p0
-    cand = np.flatnonzero((np.minimum(p0[:, 0], p0[:, 0] + r[:, 0]) <= line[:, 0].max() + pad) & (np.maximum(p0[:, 0], p0[:, 0] + r[:, 0]) >= line[:, 0].min() - pad)
-                          & (np.minimum(p0[:, 1], p0[:, 1] + r[:, 1]) <= line[:, 1].max() + pad) & (np.maximum(p0[:, 1], p0[:, 1] + r[:, 1]) >= line[:, 1].min() - pad))
-    if not len(cand): return out
-    p0, r = p0[cand], r[cand]; q0 = line[:-1]; sg = line[1:] - q0
-    denom = r[:, None, 0] * sg[None, :, 1] - r[:, None, 1] * sg[None, :, 0]; denom[denom == 0] = 1e-12
-    qp = q0[None, :, :] - p0[:, None, :]
-    t_route = (qp[:, :, 0] * sg[None, :, 1] - qp[:, :, 1] * sg[None, :, 0]) / denom
-    t_way = (qp[:, :, 0] * r[:, None, 1] - qp[:, :, 1] * r[:, None, 0]) / denom
-    for a, b in zip(*np.nonzero((t_route >= 0) & (t_route < 1) & (t_way >= 0) & (t_way < 1))):
-        i = int(cand[a])
+    for i, b, t, u in zip(*ray_hits(p0, r, line)):
+        i = int(i)
         if taken(i, own, found): continue
-        found.add(i); px, py = p0[a] + t_route[a, b] * r[a]; sb = cum[b] + t_way[a, b] * (cum[b + 1] - cum[b])
+        found.add(i); px, py = p0[i] + t * r[i]; sb = cum[b] + u * (cum[b + 1] - cum[b])
         dv = along(line, cum, sb + 30) - along(line, cum, sb - 30)
         out.append((i, px, py, dv[0], dv[1], 'LR'))
     return out
@@ -376,6 +386,29 @@ def water_crossings(elements, cos0, xs, ys):
             if 'name' in tags: h['name'] = tags['name']
             out.append(h)
     return out
+
+
+WATER_REACH = 150
+is_water_poly = lambda tags: tags.get('natural') == 'water' or tags.get('landuse') in ('reservoir', 'basin')
+
+
+def water_sides(elements, cos0, xs, ys, nx, ny):
+    """Per sample, for the left (+normal) and right side: [near, far] m from the centerline of the first water along the road's normal within WATER_REACH, or None. Ponds come from polygons (entry and exit), creeks from waterway lines widened by WATER_W."""
+    route = np.column_stack([xs, ys]); normal = np.column_stack([nx, ny]) * WATER_REACH
+    best = [[None] * len(xs), [None] * len(xs)]
+    for e in elements:
+        tags = e.get('tags', {})
+        if not (is_water_poly(tags) or tags.get('waterway') in WATER_W): continue
+        rings, lines = rings_of(e, cos0)
+        for si, s in enumerate((1, -1)):
+            for line, poly in [(r, True) for r in rings] + [(l, False) for l in lines]:
+                a, _, t, _ = ray_hits(route, s * normal, line, pad=0)
+                for i in np.unique(a):
+                    d = np.sort(t[a == i]) * WATER_REACH
+                    if poly: iv = (d[0], d[1] if len(d) > 1 else WATER_REACH)
+                    else: w = WATER_W[tags['waterway']] / 2; iv = (max(0, d[0] - w), d[0] + w)
+                    if best[si][i] is None or iv[0] < best[si][i][0]: best[si][i] = iv
+    return [[v and [round(v[0], 1), round(v[1], 1)] for v in b] for b in best]
 
 
 # ---------------- DEM ----------------
@@ -482,6 +515,7 @@ def main():
         print('OSM via Overpass', file=sys.stderr)
         els = overpass_tiles(xs, ys, cos0)
         scene['left'], scene['right'] = osm_tags(els, xs, ys, cos0, lx, ly, rx, ry)
+        scene['waterL'], scene['waterR'] = water_sides(els, cos0, xs, ys, nx, ny)
         hwys = highways(els, cos0); match = match_route(hwys, xs, ys)
         if (match >= 0).any():
             ids = sorted(set(match.tolist())); scene['ways'] = [way_info(hwys[w][0]['tags']) for w in ids]; scene['way'] = [ids.index(w) for w in match.tolist()]

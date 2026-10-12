@@ -13,6 +13,7 @@ Frame contract consumed by themes:
     skyline: { far: Float32Array(360), near } | null  elevation angle (deg) of the terrain horizon per math bearing
     lanes / kind / oneway: per-segment road shape from the map, or null (kind: road | trail | path | dirt)
     junc:    Uint8Array | null                      per-segment mask: 1 = left roadside is a side street, 2 = right
+    water:   [[near, far] | null, [near, far] | null][] | null   per-segment water beside the road, m from the centerline (left, right)
     xings:   [{ i, rows, side, w, kind }] | null    side streets: start segment, rows along the route, side (-1 left, 1 right), width (m), kind
     actors:  [{ kind, k, frame, sx, sy, ppm, clip }] }  dynamic sprites (rider, ghost) already projected; frame = animation frame index
 */
@@ -82,5 +83,5 @@ export function project(road, playerZ, P, W, H, actors = []) {
     acts.push({ kind: act.kind, k: kf, frame: act.frame || 0, sx: Math.round(p0.sx + t * (p1.sx - p0.sx) + act.offset * ppm), sy: Math.round(p0.sy + t * (p1.sy - p0.sy)), ppm, clip: clip[k0] });
   }
   acts.sort((a, b) => b.k - a.k);
-  return { W, H, horizon, base, basePct, pos, L, pts, clip, props: road.props, prof: road.prof, profD: road.profD, lanes: road.lanes, kind: road.kind, oneway: road.oneway, junc: road.junc, xings: road.xings, quads, skyline, actors: acts };
+  return { W, H, horizon, base, basePct, pos, L, pts, clip, props: road.props, prof: road.prof, profD: road.profD, lanes: road.lanes, kind: road.kind, oneway: road.oneway, junc: road.junc, water: road.water, xings: road.xings, quads, skyline, actors: acts };
 }

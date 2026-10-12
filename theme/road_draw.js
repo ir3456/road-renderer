@@ -61,6 +61,13 @@ export function drawRoad(ctx, frame, P, pal) {
     const { a, b, i, fog } = q, alt = Math.floor(i / P.stripeLen) % 2, kind = frame.kind ? frame.kind[i] : 'road';
     ctx.fillStyle = mix(pal, pal.grass[alt], fog);
     ctx.fillRect(0, b.sy, W, a.sy - b.sy);
+    const wt = frame.water && frame.water[i];
+    if (wt) for (const side of [-1, 1]) {
+      const v = wt[side < 0 ? 0 : 1];
+      if (!v) continue;
+      ctx.fillStyle = mix(pal, pal.water[alt], fog);
+      ctx.beginPath(); ctx.moveTo(a.sx + side * Math.max(a.sw, v[0] * a.ppm), a.sy); ctx.lineTo(a.sx + side * v[1] * a.ppm, a.sy); ctx.lineTo(b.sx + side * v[1] * b.ppm, b.sy); ctx.lineTo(b.sx + side * Math.max(b.sw, v[0] * b.ppm), b.sy); ctx.closePath(); ctx.fill();
+    }
     ctx.fillStyle = mix(pal, (pal[kind] || pal.road)[alt], fog);
     quad(a.sx, a.sy, a.sw, b.sx, b.sy, b.sw);
     if (kind !== 'road') continue;
@@ -150,7 +157,7 @@ function banks(ctx, p, side, P, s, ppm, clipY, h, D, i) {
 
 export function drawSprites(ctx, frame, P, assets, kinds, pal) {
   if (!assets) return;
-  const { pts, clip, props, prof, profD, base, actors, junc } = frame, mode = prof ? P.terrain : 'off';
+  const { pts, clip, props, prof, profD, base, actors, junc, water } = frame, mode = prof ? P.terrain : 'off';
   ctx.imageSmoothingEnabled = false;
   const sprite = (kind, i) => { const names = kinds[kind]; return names && assets[names[i % names.length]]; };
   const rock = mode === 'wall' && sprite('rocktile', 0), pat = rock ? ctx.createPattern(rock.img, 'repeat') : null;
@@ -164,6 +171,7 @@ export function drawSprites(ctx, frame, P, assets, kinds, pal) {
       ctx.save(); ctx.beginPath(); ctx.rect(0, 0, 1e5, clip[k]); ctx.clip();
       for (const side of [-1, 1]) {
         if (junc && junc[base + k] & (side < 0 ? 1 : 2)) continue;
+        if (water && water[base + k]?.[side < 0 ? 0 : 1]) continue;
         if (mode === 'shoulders') shoulders(ctx, p, q, side, pal);
         else if (mode === 'wall') wall(ctx, p, q, side, P, pal, pat, base + k, h[side < 0 ? 0 : 1], prof[base + k + 1][side < 0 ? 0 : 1], profD);
         else banks(ctx, p, side, P, sprite(side < 0 ? 'bankL' : 'bankR', 0), ppm, clip[k], h[side < 0 ? 0 : 1], profD, base + k);

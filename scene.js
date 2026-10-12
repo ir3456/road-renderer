@@ -27,7 +27,7 @@ export function placeholderScene(road, P) {
     road.props[i] = list;
   }
   road.prof = null; road.skyline = null;
-  road.hw = road.lanes = road.kind = road.oneway = road.name = road.junc = road.xings = null;
+  road.hw = road.lanes = road.kind = road.oneway = road.name = road.junc = road.xings = road.water = null;
 }
 
 export function applyScene(road, scene, P) {
@@ -35,7 +35,7 @@ export function applyScene(road, scene, P) {
   road.prof = scene.profL ? new Array(road.n) : null; road.profD = scene.profD;
   const sm = arr => arr.map((_, j) => arr[0].map((_, b) => { let t = 0, c = 0; for (let k = Math.max(0, j - 2); k <= Math.min(arr.length - 1, j + 2); k++) { t += arr[k][b]; c++; } return t / c; }));
   const pL = road.prof && sm(scene.profL), pR = road.prof && sm(scene.profR);
-  road.hw = road.lanes = road.kind = road.oneway = road.name = road.junc = road.xings = null;
+  road.hw = road.lanes = road.kind = road.oneway = road.name = road.junc = road.xings = road.water = null;
   if (P.mapRoads === 'on' && scene.ways) {
     const hw = new Array(road.n);
     road.lanes = new Uint8Array(road.n); road.oneway = new Uint8Array(road.n); road.kind = new Array(road.n); road.name = new Array(road.n);
@@ -61,6 +61,7 @@ export function applyScene(road, scene, P) {
       if (P.streetSigns === 'on' && x.name) signs.push({ k: i0 - 1, kind: 'streetsign', offset: x.side === 'L' ? -2 : 2, text: x.name.slice(0, 15) });
     }
   }
+  road.water = P.water === 'on' && scene.waterL ? Array.from({ length: road.n }, (_, i) => { const j = at(i), l = scene.waterL[j], r = scene.waterR[j]; return l || r ? [l, r] : null; }) : null;
   for (let i = 0; i < road.n; i++) {
     const j = at(i);
     let list = null;
@@ -75,7 +76,9 @@ export function applyScene(road, scene, P) {
       let pick = hash(i, side + 2) * opts.reduce((a, o) => a + o.w, 0), o = opts[0];
       for (o of opts) { pick -= o.w; if (pick <= 0) break; }
       const kind = o.kinds[Math.floor(hash(i, side + 6) * o.kinds.length)];
-      (list ||= []).push({ kind, offset: side * (o.far ? 8 + hash(i, side + 4) * 20 : 2 + hash(i, side + 4) * 14) });
+      const offset = side * (o.far ? 8 + hash(i, side + 4) * 20 : 2 + hash(i, side + 4) * 14), wv = road.water?.[i]?.[side < 0 ? 0 : 1], d = (road.hw ? road.hw[i] : 4) + Math.abs(offset);
+      if (wv && d > wv[0] - 2 && d < wv[1] + 2) continue;
+      (list ||= []).push({ kind, offset });
     }
     if (road.prof) { const j1 = Math.min(scene.n - 1, j + 1), t = i * road.L / scene.step - j; road.prof[i] = [pL[j].map((h, b) => h + t * (pL[j1][b] - h)), pR[j].map((h, b) => h + t * (pR[j1][b] - h))]; }
     const roadTag = scene.road?.[j];
