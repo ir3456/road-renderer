@@ -90,7 +90,8 @@
       </select>
       <label class="stat">km/h <input type="number" id="speed" value="30" min="1" max="300" step="1"></label>
       <label class="stat">× <input type="number" id="mult" value="1" min="0.1" max="50" step="0.5" title="Time multiplier for recorded speed"></label>
-      <label class="stat"><input type="checkbox" id="ghostck" checked> Ghost</label>
+      <label class="stat"><input type="checkbox" id="ghostck" checked> Ghost <input type="number" id="ghostPct" value="100" min="10" max="300" step="5" title="Ghost speed as a percent of the recording">%</label>
+      <button id="snapBtn" title="Move the ghost to your position (g)">Snap ghost</button>
       <button id="connectBtn">Connect trainer</button><span class="stat" id="kstatus"></span>
       <input type="range" id="scrub" min="0" max="1000" value="0">
       <span class="stat" id="pos"></span>
@@ -113,14 +114,14 @@ import { createProfile } from './profile.js';
 const $ = id => document.getElementById(id);
 const canvas = $('road'), menu = $('menu'), ridesEl = $('rides'), confirmEl = $('confirm'), buildLog = $('buildLog'), stopBtn = $('stopBtn');
 const playBtn = $('playBtn'), rideBtn = $('rideBtn'), finishBtn = $('finishBtn'), modeSel = $('mode'), speedIn = $('speed'), multIn = $('mult');
-const scrub = $('scrub'), posEl = $('pos'), ghostCk = $('ghostck'), kstatus = $('kstatus'), connectBtn = $('connectBtn');
+const scrub = $('scrub'), posEl = $('pos'), ghostCk = $('ghostck'), ghostPct = $('ghostPct'), kstatus = $('kstatus'), connectBtn = $('connectBtn');
 const askEl = $('ask'), askText = $('askText'), askBtns = $('askBtns');
 const fmt = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 
 // ---------- state ----------
 let track = null, road = null, scene = null, ghost = null, ridePath = null;
 let theme = null, assets = null;
-let playerZ = 0, playing = false, lastTs = 0, rideT = 0, ghostZ = null;
+let playerZ = 0, playing = false, lastTs = 0, rideT = 0, ghostT = 0, ghostZ = null;
 let ride = null, gradeNow = 0, gradeClip = false, lastGradeSent = null, liveV = 0;
 const minimap = createMinimap($('map'), $('mmN'));
 const profile = createProfile($('profile'), seek);
@@ -200,7 +201,7 @@ function loadText(text) {
   try { t = parseGpx(text); } catch (e) { notice('Could not parse GPX: ' + e.message); return false; }
   endRide();
   track = t; scene = null; ghost = makeGhost(track);
-  playerZ = 0; rideT = 0; setPlaying(false);
+  playerZ = 0; rideT = ghostT = 0; setPlaying(false);
   modeSel.querySelector('[value=gpx]').disabled = !track.t;
   if (!track.t && modeSel.value === 'gpx') modeSel.value = 'const';
   notice(null);
@@ -267,7 +268,8 @@ function seek(z) {
   if (ride) { if (!playing) ask(`Move to ${(z / 1000).toFixed(2)} km?`, ['Move', 'Cancel']).then(a => a === 'Move' && seekNow(z)); return; }
   seekNow(z);
 }
-function seekNow(z) { setZ(z); rideT = ghost ? ghost.timeAt(playerZ) : rideT; }
+function seekNow(z) { setZ(z); if (ghost) rideT = ghostT = ghost.timeAt(playerZ); }
+function snapGhost() { if (ghost) ghostT = ghost.timeAt(playerZ); }
 function setPlaying(on) { playing = on; playBtn.textContent = on ? 'Pause' : ride ? 'Resume' : 'Play'; }
 function togglePlay() { if (road) setPlaying(!playing); }
 async function settleRide() {
@@ -299,6 +301,7 @@ $('loadBtn').onclick = () => $('file').click();
 $('file').onchange = e => loadFiles(e.target.files);
 $('menuBtn').onclick = () => showMenu(menu.hidden);
 $('closeBtn').onclick = () => showMenu(false);
+$('snapBtn').onclick = snapGhost;
 stopBtn.onclick = () => fetch('stop', { method: 'POST' }).then(pollBuild);
 menu.onclick = e => { if (e.target === menu) showMenu(false); };
 canvas.onclick = () => showMenu(true);
@@ -316,6 +319,7 @@ addEventListener('keydown', e => {
   else if (e.code === 'ArrowLeft') { e.preventDefault(); seek(playerZ - step); }
   else if (e.code === 'ArrowUp') { e.preventDefault(); speedIn.value = +speedIn.value + 5; }
   else if (e.code === 'ArrowDown') { e.preventDefault(); speedIn.value = Math.max(1, +speedIn.value - 5); }
+  else if (e.key === 'g') snapGhost();
   else if (e.key === ',') shift(-1);
   else if (e.key === '.') shift(1);
   else if (e.code === 'Home') { seek(0); if (!ride) rideT = 0; }
@@ -330,7 +334,7 @@ function drawHud(frame) {
   const radius = Math.abs(road.dTheta[i + 1]) > 1e-6 ? L / Math.abs(road.dTheta[i + 1]) : Infinity;
   let ghostLine = '';
   if (ghostZ !== null) {
-    const dGap = playerZ - ghostZ, tGap = ghost.timeAt(playerZ) - rideT;
+    const dGap = playerZ - ghostZ, tGap = (ghost.timeAt(playerZ) - ghostT) / (ghostPct.value / 100);
     ghostLine = `\nghost ${dGap >= 0 ? '+' : '-'}${Math.abs(dGap).toFixed(0)} m   ${tGap >= 0 ? '+' : '-'}${fmt(Math.abs(tGap))}`;
   }
   $('hud').textContent =
@@ -353,7 +357,7 @@ function frame(ts) {
     const gi = Math.min(road.n - 2, Math.floor(playerZ / road.L)), gj = Math.min(road.n - 1, gi + Math.round(20 / road.L));
     gradeNow = Math.round((road.ele[gj] - road.ele[gi]) / ((gj - gi) * road.L) * 200) / 2;
     if (playing) {
-      rideT += dt;
+      rideT += dt; ghostT += dt * ghostPct.value / 100;
       setZ(playerZ + speedNow() * dt);
       if (ride) record(ride, playerZ, kickr.live);
       if (playerZ >= road.total - 1) ride ? rideDone() : setPlaying(false);
@@ -362,7 +366,7 @@ function frame(ts) {
         if (key !== lastGradeSent) { gradeClip = Math.abs(kickr.setGrade(gradeNow, P.crr, P.cw, gearK())) === 20; lastGradeSent = key; }
       }
     }
-    ghostZ = ghost && ghostCk.checked ? Math.min(road.total - 1, ghost.distAt(rideT)) : null;
+    ghostZ = ghost && ghostCk.checked ? Math.min(road.total - 1, ghost.distAt(ghostT)) : null;
     if (P.riderSprite === 'on') actors.push({ z: playerZ + 3.5, offset: 1.2, kind: 'rider', frame: Math.floor(playerZ / P.pedalStride) });
     if (ghostZ !== null) actors.push({ z: ghostZ + 3.5, offset: -1.2, kind: 'ghost', frame: Math.floor(ghostZ / P.pedalStride) });
     scrub.value = playerZ / road.total * 1000;

@@ -14,7 +14,7 @@ Both pages take GPX files with or without timestamps. A recorded activity (Strav
 ### Player (`index.html`)
 Press Esc or click the road for the menu. The Ride tab lists every `.gpx` in the folder and `clips/`; picking one shows whether its `.scene.json` exists plus miles, elevation gain and duration, and offers Ride, Ride without scene, and Build scene (runs `tools/build_scene.py` through the server; `Stop build` kills it) or Rebuild. The other tabs hold the levers, which persist in local storage along with the last ride's path; `Reset levers` restores defaults. `Load file…` with a lone GPX copies it into `clips/` and goes through the same confirm; drag-drop or picking a GPX together with its scene JSON loads them directly.
 
-Transport bar: Play, speed source (constant km/h, recorded × multiplier, live trainer), Ghost toggle, Connect trainer, scrub. Keys: `space` play, `←`/`→` 10 m (shift 100 m), `↑`/`↓` speed, `home` start, `,`/`.` shift the virtual gear.
+Transport bar: Play, speed source (constant km/h, recorded × multiplier, live trainer), Ghost toggle with its speed percent, Snap ghost, Connect trainer, scrub. Keys: `space` play, `←`/`→` 10 m (shift 100 m), `↑`/`↓` speed, `home` start, `g` snap ghost, `,`/`.` shift the virtual gear.
 
 `Start ride` records a ride driven by the selected speed source (normally Live trainer): one sample per second of position, power and cadence. While riding, seeking only works when paused and asks for confirmation; reaching the end pauses with Restart / Join elsewhere / Finish; `Finish ride` writes a Strava-ready GPX (`VirtualRide`, power and cadence extensions) to `rides/` through the server and downloads it.
 
@@ -94,7 +94,7 @@ The `terrain` lever picks how the cross-section is drawn, all from the same `pro
 Sprites are drawn after the road, far to near. Height on screen = meters × (segment half-width px ÷ road half-width m), so a 14 m pine stays 14 m relative to the road. Anything below the segment's clip line is cropped, so trees behind a crest sink out of sight like the road does. Offsets are meters from the road edge, so road width never puts a tree on the pavement. Buildings and cabins are drawn with a visible side and mirrored on the right of the road (`faceRoad`). Actors (rider, ghost) go through the same projection at fractional segment positions and are drawn interleaved with scenery by depth.
 
 ## Ghost
-`Ghost` replays the GPX timestamps: elapsed ride time → recorded distance. Scrubbing sets the clock to the recorded time at that point, so the ghost starts beside you. HUD shows the gap in meters and seconds. Remove stops in the editor first if the recording waited at lights; the ghost reproduces every stop.
+`Ghost` replays the GPX timestamps: elapsed ride time → recorded distance. The percent next to it scales the ghost's clock, so 90% rides 10% slower than the recording and 110% faster; it can be changed mid-ride. Scrubbing sets the clock to the recorded time at that point, so the ghost starts beside you; `Snap ghost` (or `g`) does the same without moving you, for when it is lost or too far ahead. HUD shows the gap in meters and seconds. Remove stops in the editor first if the recording waited at lights; the ghost reproduces every stop.
 
 ## Decisions and known limits
 - Semantic props, not sprite names, in the road model, so terrain work and art work never touch the same file. Walls are geometry; repeated slab sprites read as boxes.
