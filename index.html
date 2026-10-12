@@ -133,7 +133,7 @@ for (const t of pages) {
 }
 pages[0].btn.click();
 $('resetBtn').onclick = () => { resetLevers(); buildRoad(); loadTheme(); };
-let buildTimer = null;
+let buildTimer = null, buildTarget = null;
 function listRides() {
   fetch('rides.json').then(r => r.json()).then(list => {
     ridesEl.innerHTML = '';
@@ -148,7 +148,7 @@ function pick(r) {
   confirmEl.innerHTML = `<div>${r.path}<span>${r.scene ? 'scene built ✓' : 'no scene data yet'}</span></div>`;
   const btn = (t, fn) => { const b = document.createElement('button'); b.textContent = t; b.onclick = () => { confirmEl.hidden = true; ridesEl.hidden = false; fn(); }; confirmEl.appendChild(b); };
   btn(r.scene ? 'Ride' : 'Ride without scene', () => loadUrl(r.path));
-  btn(r.scene ? 'Rebuild scene' : 'Build scene & ride', () => { ridePath = r.path; fetch('build?f=' + encodeURIComponent(r.path), { method: 'POST' }).then(pollBuild); });
+  btn(r.scene ? 'Rebuild scene' : 'Build scene & ride', () => { buildTarget = r.path; fetch('build?f=' + encodeURIComponent(r.path), { method: 'POST' }).then(pollBuild); });
   btn('Back', () => {});
 }
 function pollBuild() {
@@ -156,7 +156,7 @@ function pollBuild() {
   fetch('build.json').then(r => r.json()).then(b => {
     buildLog.textContent = b.path ? `${b.path}\n${b.log.join('\n')}` : '';
     if (b.running) buildTimer = setTimeout(pollBuild, 1000);
-    else if (b.path) { listRides(); if (b.code === 0 && b.path === ridePath) loadUrl(b.path); }
+    else if (buildTarget) { const t = buildTarget; buildTarget = null; listRides(); if (b.code === 0 && b.path === t) loadUrl(t); }
   }).catch(() => {});
 }
 function showMenu(on) {
