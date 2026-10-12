@@ -1,4 +1,4 @@
-import { drawScene } from './road_draw.js';
+import { theme } from './road_draw.js';
 
 const pal = {
   skyTop: [12, 16, 32], sky: [20, 28, 48],
@@ -14,5 +14,4 @@ const pal = {
   trail: [[120, 112, 96], [114, 106, 90]], dirt: [[122, 94, 60], [114, 88, 56]],
 };
 
-const kinds = { pine: ['pine'], tree: ['tree'], bush: ['bush'], rock: ['rock'], sign: ['sign'], building: ['building'], cliff: ['cliff'], cabin: ['cabin'], rider: ['bikeback'], ghost: ['bikeback'], bankL: ['bankL'], bankR: ['bankR'], rocktile: ['rocktile'], stopsign: ['stopsign'], signal: ['signal'] };
-export default { name: 'Flat', sprites: ['sprites/placeholder/manifest.json', 'sprites/bike/manifest.json'], kinds, draw(ctx, frame, P, assets) { drawScene(ctx, frame, P, pal, assets, kinds); } };
+export default theme('Flat', pal);
