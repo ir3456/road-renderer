@@ -1,6 +1,6 @@
 export function parseGpx(text) {
   const doc = new DOMParser().parseFromString(text, 'application/xml');
-  const pts = [...doc.getElementsByTagName('trkpt')];
+  const pts = [...doc.getElementsByTagName('trkpt'), ...doc.getElementsByTagName('rtept')];
   if (pts.length < 2) throw new Error('no track points');
   const lat0 = +pts[0].getAttribute('lat') * Math.PI / 180;
   const R = 6371000, cosLat = Math.cos(lat0);

@@ -59,7 +59,7 @@ def tile_path(layer, i, j, ext):
 def read_gpx(path):
     ns = {'g': 'http://www.topografix.com/GPX/1/1'}
     root = ET.parse(path).getroot()
-    pts = root.findall('.//g:trkpt', ns) or root.findall('.//trkpt')
+    pts = root.findall('.//g:trkpt', ns) or root.findall('.//trkpt') or root.findall('.//g:rtept', ns) or root.findall('.//rtept')
     lat = np.array([float(p.get('lat')) for p in pts]); lon = np.array([float(p.get('lon')) for p in pts])
     return lat, lon
 

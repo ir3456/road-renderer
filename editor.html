@@ -3,30 +3,26 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Ride Replay</title>
+<title>Ride Editor</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <style>
   html, body { margin: 0; height: 100%; font: 14px/1.4 -apple-system, system-ui, sans-serif; background: #111; color: #eee; }
-  #map { position: absolute; inset: 0 0 268px 0; }
-  #panel { position: absolute; left: 0; right: 0; bottom: 0; height: 268px; background: #1b1b1b; border-top: 1px solid #333; padding: 10px 16px; box-sizing: border-box; display: flex; flex-direction: column; gap: 8px; }
+  #map { position: absolute; inset: 0 0 220px 0; }
+  #panel { position: absolute; left: 0; right: 0; bottom: 0; height: 220px; background: #1b1b1b; border-top: 1px solid #333; padding: 10px 16px; box-sizing: border-box; display: flex; flex-direction: column; gap: 8px; }
   #profile { width: 100%; height: 100px; display: block; cursor: crosshair; }
   #scrub { width: 100%; margin: 0; }
   .row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
   .stats { display: flex; gap: 18px; margin-left: auto; font-variant-numeric: tabular-nums; }
   .stats span b { color: #8ab4f8; font-weight: 600; display: inline-block; text-align: right; }
   #clock { width: 8.5ch; } #elapsed { width: 6.5ch; } #dist { width: 8ch; } #spd { width: 8ch; } #pwr { width: 6ch; } #ele { width: 7ch; }
-  #cad { width: 7ch; } #grade { width: 6ch; } #gsent { width: 6ch; } #gap { width: 15ch; }
   button, select, input[type=text] { background: #2a2a2a; color: #eee; border: 1px solid #444; border-radius: 6px; padding: 5px 12px; font: inherit; }
   button, select { cursor: pointer; } button:hover, select:hover { background: #333; }
   button:disabled { opacity: .4; cursor: default; }
   input[type=text] { padding: 4px 6px; width: 4ch; text-align: center; font-variant-numeric: tabular-nums; }
-  input.wide { width: 6ch; }
   label { display: flex; align-items: center; gap: 5px; cursor: pointer; }
   #title { font-weight: 600; color: #bbb; }
-  #status, #kstatus { color: #8ab4f8; }
-  #status { margin-left: auto; }
+  #status { color: #8ab4f8; margin-left: auto; }
   .leaflet-container { background: #0d0d0d; }
-  .riding #dot-hint { display: inline; }
 </style>
 </head>
 <body>
@@ -54,7 +50,7 @@
     </div>
   </div>
   <div class="row">
-    <span id="title"></span>
+    <span id="title">Load a GPX, TCX or FIT file, or drop one here</span>
     <button id="load">Load file</button>
     <input id="file" type="file" accept=".gpx,.tcx,.fit" hidden>
     <button id="fixdrift">Fix elevation drift</button>
@@ -66,40 +62,21 @@
     <button id="unstop" title="Replace short stops (lights, signs) with the speed held before braking; later times shift earlier">Remove stops</button>
     <label>≤ <input id="maxstop" type="text" value="120"> s</label>
     <label title="Stops at least this long are marked on the profile; click one to snap, , and . jump between them">Stops ≥ <input id="minstop" type="text" value="60"> s</label>
-    <input id="exportname" type="text" class="wide" style="width:22ch;text-align:left" placeholder="file name">
+    <input id="exportname" type="text" style="width:22ch;text-align:left" placeholder="file name">
     <button id="export">Export GPX</button>
     <span id="status"></span>
-  </div>
-  <div class="row">
-    <button id="connect">Connect Kickr</button>
-    <button id="ridebtn" disabled>Start ride</button>
-    <button id="finish" disabled>Finish ride</button>
-    <label title="Gear physically on the trainer bike">Bike <input id="tRing" type="text" value="39">/<input id="tCog" type="text" value="14"></label>
-    <label title="Gear to mimic">Mimic <input id="fRing" type="text" value="49">/<input id="fCog" type="text" value="18"></label>
-    <label title="Wheel circumference, mm">Wheel <input id="wheel" type="text" class="wide" value="2105"></label>
-    <label title="Rolling resistance coefficient">Crr <input id="crr" type="text" class="wide" value="0.004"></label>
-    <label title="Wind resistance coefficient, kg/m">Cw <input id="cw" type="text" class="wide" value="0.25"></label>
-    <label><input id="ghostck" type="checkbox" checked> Ghost</label>
-    <label>Speed from <select id="spdsrc"><option value="cadence">cadence (fixed gear)</option><option value="trainer">trainer</option></select></label>
-    <button id="exportride" disabled>Export ride TCX</button>
-    <div class="stats">
-      <span>Cad <b id="cad">–</b></span>
-      <span>Grade <b id="grade">–</b></span>
-      <span>Sent <b id="gsent">–</b></span>
-      <span>Gap <b id="gap">–</b></span>
-    </div>
-    <span id="kstatus"></span>
   </div>
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script>
-const GAP = 15;
+const GAP = 15, ROUTE_SPEED = 25 / 3.6;
 const TZ = 'America/Denver';
 const $ = id => document.getElementById(id);
 const fmt = s => { s = Math.round(s); const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), x = s % 60; return (h ? h + ':' : '') + String(m).padStart(h ? 2 : 1, '0') + ':' + String(x).padStart(2, '0'); };
 const ft = m => Math.round(m * 3.28084);
+const status = msg => $('status').textContent = msg;
 
-const map = L.map('map');
+const map = L.map('map').setView([40.7, -111.9], 11);
 const esri = 'https://server.arcgisonline.com/ArcGIS/rest/services/';
 const dark = L.layerGroup([
   L.tileLayer(esri + 'Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', { maxZoom: 16, attribution: 'Tiles &copy; Esri' }),
@@ -110,12 +87,11 @@ L.control.layers({ Dark: dark, Streets: streets }, null, { position: 'topright' 
 const route = L.polyline([], { color: '#555', weight: 3 }).addTo(map);
 const trail = L.polyline([], { color: '#f28b30', weight: 4 }).addTo(map);
 const keep = L.polyline([], { color: '#8ab4f8', weight: 5, opacity: 0.8 }).addTo(map);
-let cropA = null, cropB = null, stops = [];
 const dot = L.circleMarker([0, 0], { radius: 8, color: '#fff', weight: 2, fillColor: '#f28b30', fillOpacity: 1 }).addTo(map);
-const ghost = L.circleMarker([0, 0], { radius: 7, color: '#fff', weight: 2, fillColor: '#8ab4f8', fillOpacity: 0.9 });
-let ghostDist = null;
 
-let ride, P, origEle, realT, compT, T, latlngs, totalDist, eleMin, eleMax;
+// Points are [t (s from ride.start), lat, lon, ele (m), dist (m), speed (m/s), power (W)]. Routes without timestamps get times at ROUTE_SPEED.
+let ride = null, P, origEle, realT, compT, T, latlngs, totalDist, eleMin, eleMax;
+let cropA = null, cropB = null, stops = [];
 let cur = 0, curDist = 0, playing = false, last = null;
 
 function haversine(a, b) {
@@ -128,6 +104,7 @@ function haversine(a, b) {
 function loadRide(r) {
   ride = r; P = r.pts;
   if (P[0][4] == null) { let d = 0; P[0][4] = 0; for (let i = 1; i < P.length; i++) { d += haversine([P[i-1][1], P[i-1][2]], [P[i][1], P[i][2]]); P[i][4] = d; } }
+  if (!r.hasTime) for (const p of P) p[0] = p[4] / ROUTE_SPEED;
   for (let i = 0; i < P.length; i++) if (P[i][5] == null) {
     const j = Math.max(0, i - 1), dt = P[i][0] - P[j][0];
     P[i][5] = dt > 0 && dt <= GAP ? (P[i][4] - P[j][4]) / dt : 0;
@@ -143,14 +120,15 @@ function loadRide(r) {
   route.setLatLngs(latlngs); trail.setLatLngs([]);
   map.fitBounds(route.getBounds(), { padding: [30, 30] });
   $('exportname').value = safeName() + '_fixed';
-  $('title').textContent = r.name + ' · ' + new Date(r.start * 1000).toLocaleDateString('en-US', { timeZone: TZ, dateStyle: 'long' });
+  $('title').textContent = r.name + ' · ' + (r.hasTime ? new Date(r.start * 1000).toLocaleDateString('en-US', { timeZone: TZ, dateStyle: 'long' }) : 'route, no timestamps');
+  $('unstop').disabled = !r.hasTime;
   cur = 0; setPlaying(false); cropA = cropB = null; findStops(); markChanged(); eleChanged();
 }
 function findStops() {
   const min = Math.max(GAP, +$('minstop').value || 0);
   stops = []; for (let i = 1; i < P.length; i++) if (realT[i] - realT[i - 1] > min) stops.push(i);
 }
-$('minstop').onchange = () => { findStops(); render(); };
+$('minstop').onchange = () => { if (ride) { findStops(); render(); } };
 function markChanged() {
   const i0 = cropA ?? 0, i1 = cropB ?? P.length - 1;
   keep.setLatLngs(cropA === null && cropB === null ? [] : latlngs.slice(i0, i1 + 1));
@@ -170,7 +148,6 @@ function sizeProfile() {
 }
 const px = d => d / totalDist * pw, py = e => ph - 6 - (e - eleMin) / (eleMax - eleMin || 1) * (ph - 14);
 function drawProfile(i) {
-  const gd = ghostDist;
   pctx.clearRect(0, 0, pw, ph);
   pctx.beginPath(); pctx.moveTo(0, ph);
   for (const p of P) pctx.lineTo(px(p[4]), py(p[3]));
@@ -190,10 +167,6 @@ function drawProfile(i) {
   const x = px(curDist), y = py(P[i][3]);
   pctx.beginPath(); pctx.moveTo(x, 0); pctx.lineTo(x, ph); pctx.strokeStyle = '#f28b30'; pctx.lineWidth = 1; pctx.stroke();
   pctx.beginPath(); pctx.arc(x, y, 5, 0, Math.PI * 2); pctx.fillStyle = '#f28b30'; pctx.fill(); pctx.strokeStyle = '#fff'; pctx.lineWidth = 1.5; pctx.stroke();
-  if (gd !== null) {
-    const gi = indexAtDist(gd), gx = px(gd), gy = py(P[gi][3]);
-    pctx.beginPath(); pctx.arc(gx, gy, 4, 0, Math.PI * 2); pctx.fillStyle = '#8ab4f8'; pctx.fill(); pctx.strokeStyle = '#fff'; pctx.lineWidth = 1; pctx.stroke();
-  }
   pctx.fillStyle = '#999'; pctx.font = '11px system-ui'; pctx.textBaseline = 'top'; pctx.fillText(ft(eleMax) + ' ft', 4, 2);
   pctx.textBaseline = 'bottom'; pctx.fillText(ft(eleMin) + ' ft', 4, ph - 1);
 }
@@ -203,8 +176,8 @@ function indexAtDist(d) {
   return lo;
 }
 function seekDist(clientX) {
+  if (!ride) return;
   const x = clientX - prof.getBoundingClientRect().left, d = Math.max(0, Math.min(1, x / pw)) * totalDist;
-  if (riding) { rideDist = d; renderRide(); return; }
   const k = stops.find(k => Math.abs(px(P[k][4]) - x) <= 6);
   cur = T[k ?? indexAtDist(d)]; render();
 }
@@ -212,36 +185,30 @@ let dragging = false;
 prof.onpointerdown = e => { dragging = true; prof.setPointerCapture(e.pointerId); seekDist(e.clientX); };
 prof.onpointermove = e => { if (dragging) seekDist(e.clientX); };
 prof.onpointerup = () => dragging = false;
-addEventListener('resize', () => { sizeProfile(); riding ? renderRide() : render(); });
+addEventListener('resize', () => { sizeProfile(); if (ride) render(); });
 
 function indexAt(t) {
   let lo = 0, hi = T.length - 1;
   while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (T[mid] <= t) lo = mid; else hi = mid - 1; }
   return lo;
 }
-function showPos(i, f) {
-  const j = Math.min(i + 1, P.length - 1), a = P[i], b = P[j];
-  const pos = [a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f];
+const scrub = $('scrub');
+function render() {
+  const i = indexAt(cur), j = Math.min(i + 1, P.length - 1);
+  const span = T[j] - T[i], f = span > 0 ? Math.min(1, (cur - T[i]) / span) : 0;
+  const a = P[i], b = P[j], pos = [a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f];
   dot.setLatLng(pos);
   if ($('trail').checked) trail.setLatLngs(latlngs.slice(0, i + 1).concat([pos]));
   if ($('follow').checked) map.panTo(pos, { animate: false });
   curDist = a[4] + (b[4] - a[4]) * f;
   drawProfile(i);
+  scrub.value = Math.round(cur / T[T.length - 1] * 1e6);
   $('dist').textContent = (curDist / 1609.34).toFixed(2) + ' mi';
   $('ele').textContent = ft(a[3] + (b[3] - a[3]) * f) + ' ft';
-  return pos;
-}
-const scrub = $('scrub');
-function render() {
-  const i = indexAt(cur), j = Math.min(i + 1, P.length - 1);
-  const span = T[j] - T[i], f = span > 0 ? Math.min(1, (cur - T[i]) / span) : 0;
-  const a = P[i], b = P[j];
-  showPos(i, f);
-  scrub.value = Math.round(cur / T[T.length - 1] * 1e6);
-  $('clock').textContent = new Date((ride.start + a[0] + (b[0] - a[0]) * f) * 1000).toLocaleTimeString('en-US', { timeZone: TZ });
-  $('elapsed').textContent = fmt(a[0] + (b[0] - a[0]) * f);
-  $('spd').textContent = (a[5] * 2.23694).toFixed(1) + ' mph';
-  $('pwr').textContent = a[6] + ' W';
+  $('clock').textContent = ride.hasTime ? new Date((ride.start + a[0] + (b[0] - a[0]) * f) * 1000).toLocaleTimeString('en-US', { timeZone: TZ }) : '–';
+  $('elapsed').textContent = ride.hasTime ? fmt(a[0] + (b[0] - a[0]) * f) : '–';
+  $('spd').textContent = ride.hasTime ? (a[5] * 2.23694).toFixed(1) + ' mph' : '–';
+  $('pwr').textContent = ride.hasTime ? a[6] + ' W' : '–';
 }
 function frame(ts) {
   if (!playing) return;
@@ -252,24 +219,23 @@ function frame(ts) {
   if (playing) requestAnimationFrame(frame);
 }
 function setPlaying(on) {
-  if (riding) on = false;
-  playing = on; last = null;
-  $('play').textContent = on ? 'Pause' : 'Play';
-  if (on) { if (cur >= T[T.length - 1]) cur = 0; requestAnimationFrame(frame); }
+  playing = on && !!ride; last = null;
+  $('play').textContent = playing ? 'Pause' : 'Play';
+  if (playing) { if (cur >= T[T.length - 1]) cur = 0; requestAnimationFrame(frame); }
 }
 $('play').onclick = () => setPlaying(!playing);
-scrub.oninput = () => { if (riding) { rideDist = scrub.value / 1e6 * totalDist; renderRide(); } else { cur = scrub.value / 1e6 * T[T.length - 1]; render(); } };
-$('trail').onchange = e => { if (e.target.checked) riding ? renderRide() : render(); else trail.setLatLngs([]); };
+scrub.oninput = () => { if (ride) { cur = scrub.value / 1e6 * T[T.length - 1]; render(); } };
+$('trail').onchange = e => { if (!ride) return; if (e.target.checked) render(); else trail.setLatLngs([]); };
 $('route').onchange = e => e.target.checked ? route.addTo(map) : route.remove();
 $('skip').onchange = e => {
+  if (!ride) return;
   const i = indexAt(cur), j = Math.min(i + 1, T.length - 1), f = T[j] > T[i] ? (cur - T[i]) / (T[j] - T[i]) : 0;
   T = e.target.checked ? compT : realT;
   cur = T[i] + (T[j] - T[i]) * f;
   render();
 };
 document.addEventListener('keydown', e => {
-  if (['INPUT', 'SELECT', 'BUTTON'].includes(e.target.tagName)) return;
-  if (riding) return;
+  if (['INPUT', 'SELECT', 'BUTTON'].includes(e.target.tagName) || !ride) return;
   if (e.code === 'Space') { e.preventDefault(); setPlaying(!playing); }
   if (e.code === 'ArrowRight') { cur = Math.min(T[T.length - 1], cur + 30); render(); }
   if (e.code === 'ArrowLeft') { cur = Math.max(0, cur - 30); render(); }
@@ -277,18 +243,17 @@ document.addEventListener('keydown', e => {
   if (e.key === '[') $('markA').click();
   if (e.key === ']') $('markB').click();
 });
-$('markA').onclick = () => { cropA = indexAt(cur); markChanged(); render(); };
-$('markB').onclick = () => { const i = indexAt(cur); cropB = stops.includes(i) ? i - 1 : i; markChanged(); render(); };
+
+// ---- edits ----
+$('markA').onclick = () => { if (!ride) return; cropA = indexAt(cur); markChanged(); render(); };
+$('markB').onclick = () => { if (!ride) return; const i = indexAt(cur); cropB = stops.includes(i) ? i - 1 : i; markChanged(); render(); };
 $('crop').onclick = () => {
   let i0 = cropA ?? 0; const i1 = cropB ?? P.length - 1, n = P.length;
   while (i0 < i1 - 1 && (P[i0 + 1][4] - P[i0][4] < 0.5 || P[i0 + 1][4] - P[i0][4] > 25)) i0++;
   const t0 = P[i0][0], d0 = P[i0][4];
-  loadRide({ start: ride.start + t0, name: ride.name, pts: P.slice(i0, i1 + 1).map(p => [p[0] - t0, p[1], p[2], p[3], p[4] - d0, p[5], p[6]]) });
+  loadRide({ ...ride, start: ride.start + t0, pts: P.slice(i0, i1 + 1).map(p => [p[0] - t0, p[1], p[2], p[3], p[4] - d0, p[5], p[6]]) });
   status(`Cropped to ${P.length} of ${n} points, ${(totalDist / 1609.34).toFixed(2)} mi`);
 };
-
-const status = msg => $('status').textContent = msg;
-
 $('unstop').onclick = () => {
   const maxStop = +$('maxstop').value || 120, t = P.map(p => p[0]), d = P.map(p => p[4]), v = P.map(p => p[5]), n = P.length;
   let saved = 0, drift = 0, count = 0, e0 = 0;
@@ -310,11 +275,11 @@ $('unstop').onclick = () => {
     for (let k = e0 + 1; k < n; k++) { P[k][0] = t[k] - saved; P[k][4] = d[k] - drift; }
     a = e0;
   }
-  loadRide({ start: ride.start, name: ride.name, pts: P });
+  loadRide(ride);
   status(count ? `Removed ${count} stop${count > 1 ? 's' : ''}, ${fmt(saved)} and ${Math.round(drift)} m of GPS drift` : 'No stops found');
 };
-
 $('fixdrift').onclick = () => {
+  if (!ride) return;
   let offset = 0; const steps = [];
   for (let i = 1; i < P.length; i++) {
     const de = origEle[i] - origEle[i-1], dd = P[i][4] - P[i-1][4];
@@ -326,46 +291,51 @@ $('fixdrift').onclick = () => {
   status(steps.length ? `Removed ${steps.length} step${steps.length > 1 ? 's' : ''}: ${steps.map(s => (s > 0 ? '+' : '') + ft(s) + ' ft').join(', ')}` : 'No elevation steps found');
 };
 $('level').onclick = () => {
+  if (!ride) return;
   const delta = P[P.length - 1][3] - P[0][3];
   for (const p of P) p[3] -= delta * p[4] / totalDist;
   eleChanged();
   status(`Leveled: removed ${ft(delta)} ft of net drift across the ride`);
 };
-$('resetele').onclick = () => { for (let i = 0; i < P.length; i++) P[i][3] = origEle[i]; eleChanged(); status('Elevation reset to original'); };
+$('resetele').onclick = () => { if (!ride) return; for (let i = 0; i < P.length; i++) P[i][3] = origEle[i]; eleChanged(); status('Elevation reset to original'); };
 
+// ---- export ----
 const esc = s => s.replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
 const safeName = () => ride.name.replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '_');
-function download(text, filename, type) {
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([text], { type }));
-  a.download = filename; a.click(); URL.revokeObjectURL(a.href);
-}
 $('export').onclick = () => {
-  const hasPower = P.some(p => p[6] > 0);
-  let out = `<?xml version="1.0" encoding="UTF-8"?>\n<gpx creator="Ride Replay" version="1.1" xmlns="http://www.topografix.com/GPX/1/1">\n<metadata><time>${new Date(ride.start * 1000).toISOString()}</time></metadata>\n<trk><name>${esc(ride.name)}</name><type>cycling</type><trkseg>\n`;
+  if (!ride) return;
+  const hasPower = P.some(p => p[6] > 0), iso = t => new Date((ride.start + t) * 1000).toISOString();
+  let out = `<?xml version="1.0" encoding="UTF-8"?>\n<gpx creator="Ride Editor" version="1.1" xmlns="http://www.topografix.com/GPX/1/1">\n`;
+  if (ride.hasTime) out += `<metadata><time>${iso(0)}</time></metadata>\n`;
+  out += `<trk><name>${esc(ride.name)}</name><type>cycling</type><trkseg>\n`;
   for (let i = 0; i < P.length; i++) {
     const p = P[i];
-    out += `<trkpt lat="${p[1]}" lon="${p[2]}"><ele>${p[3].toFixed(1)}</ele><time>${new Date((ride.start + compT[i]) * 1000).toISOString()}</time>`;
+    out += `<trkpt lat="${p[1]}" lon="${p[2]}"><ele>${p[3].toFixed(1)}</ele>`;
+    if (ride.hasTime) out += `<time>${iso(compT[i])}</time>`;
     if (hasPower) out += `<extensions><power>${p[6]}</power></extensions>`;
     out += `</trkpt>\n`;
   }
   out += `</trkseg></trk>\n</gpx>\n`;
-  download(out, ($('exportname').value.trim() || safeName() + '_fixed').replace(/\.gpx$/i, '') + '.gpx', 'application/gpx+xml');
-  status(`Exported ${P.length} points, stops compressed, ${fmt(compT[compT.length - 1])} total`);
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([out], { type: 'application/gpx+xml' }));
+  a.download = ($('exportname').value.trim() || safeName() + '_fixed').replace(/\.gpx$/i, '') + '.gpx'; a.click(); URL.revokeObjectURL(a.href);
+  status(`Exported ${P.length} points` + (ride.hasTime ? `, stops compressed, ${fmt(compT[compT.length - 1])} total` : ''));
 };
 
+// ---- parsing ----
 const num = (el, tag) => { const n = el.getElementsByTagName(tag)[0]; return n ? parseFloat(n.textContent) : null; };
 function parseGpx(text, name) {
   const doc = new DOMParser().parseFromString(text, 'application/xml');
-  const nm = doc.getElementsByTagName('name')[0];
+  const nm = doc.getElementsByTagName('name')[0], tps = [...doc.getElementsByTagName('trkpt'), ...doc.getElementsByTagName('rtept')];
+  const hasTime = tps.filter(tp => tp.getElementsByTagName('time')[0]).length >= 2;
   const pts = [];
-  for (const tp of doc.getElementsByTagName('trkpt')) {
+  for (const tp of tps) {
     const tn = tp.getElementsByTagName('time')[0];
-    if (!tn) continue;
+    if (hasTime && !tn) continue;
     const pwr = tp.getElementsByTagName('power')[0] || tp.getElementsByTagName('pwr')[0];
-    pts.push([Math.round(Date.parse(tn.textContent) / 1000), +tp.getAttribute('lat'), +tp.getAttribute('lon'), num(tp, 'ele') ?? 0, null, null, pwr ? parseInt(pwr.textContent) : null]);
+    pts.push([hasTime ? Math.round(Date.parse(tn.textContent) / 1000) : 0, +tp.getAttribute('lat'), +tp.getAttribute('lon'), num(tp, 'ele') ?? 0, null, null, pwr ? parseInt(pwr.textContent) : null]);
   }
-  return { name: nm ? nm.textContent : name, pts };
+  return { name: nm ? nm.textContent : name, pts, hasTime };
 }
 function parseTcx(text, name) {
   const doc = new DOMParser().parseFromString(text, 'application/xml');
@@ -377,7 +347,7 @@ function parseTcx(text, name) {
     pts.push([Math.round(Date.parse(tn.textContent) / 1000), lat, lon, num(tp, 'AltitudeMeters') ?? 0, num(tp, 'DistanceMeters'), spd ? parseFloat(spd.textContent) : null, w ? parseInt(w.textContent) : null]);
   }
   const notes = doc.getElementsByTagName('Notes')[0];
-  return { name: notes ? notes.textContent : name, pts };
+  return { name: notes ? notes.textContent : name, pts, hasTime: true };
 }
 async function parseFit(buf, name) {
   const { default: FitParser } = await import('https://cdn.jsdelivr.net/npm/fit-file-parser@6.1.2/+esm');
@@ -387,191 +357,31 @@ async function parseFit(buf, name) {
     if (r.position_lat == null || !r.timestamp) continue;
     pts.push([Math.round(new Date(r.timestamp).getTime() / 1000), r.position_lat, r.position_long, r.enhanced_altitude ?? r.altitude ?? 0, r.distance ?? null, r.enhanced_speed ?? r.speed ?? null, r.power ?? null]);
   }
-  return { name, pts };
+  return { name, pts, hasTime: true };
 }
-$('load').onclick = () => $('file').click();
-$('file').onchange = async e => {
-  const f = e.target.files[0]; if (!f) return;
+async function loadFile(f) {
   const base = f.name.replace(/\.[^.]+$/, '');
   try {
     let r;
     if (/\.fit$/i.test(f.name)) r = await parseFit(await f.arrayBuffer(), base);
     else if (/\.tcx$/i.test(f.name)) r = parseTcx(await f.text(), base);
     else r = parseGpx(await f.text(), base);
-    if (r.pts.length < 2) throw new Error('No timestamped track points found. Route exports have no times, so they cannot be replayed.');
-    r.pts.sort((a, b) => a[0] - b[0]);
+    if (r.pts.length < 2) throw new Error('No track points found');
+    if (r.hasTime) r.pts.sort((a, b) => a[0] - b[0]);
     r.start = r.pts[0][0];
     for (const p of r.pts) p[0] -= r.start;
     loadRide(r);
-    status(`Loaded ${r.pts.length} points from ${f.name}`);
+    status(`Loaded ${r.pts.length} points from ${f.name}` + (r.hasTime ? '' : ' (route without timestamps)'));
   } catch (err) { status('Load failed: ' + err.message); }
-  e.target.value = '';
-};
-
-// ---- Kickr over Web Bluetooth FTMS ----
-const kstatus = msg => $('kstatus').textContent = msg;
-let device = null, cp = null, cpQueue = Promise.resolve();
-let live = { speed: 0, cadence: 0, power: 0, at: 0 };
-let riding = false, finished = false, rideDist = 0, rideT = 0, rideLast = null, rideStart = 0, samples = [], lastSent = null, lastSendAt = 0, lastSample = -1;
-
-function onBikeData(e) {
-  const dv = e.target.value, flags = dv.getUint16(0, true);
-  let o = 2;
-  if (!(flags & 1)) { live.speed = dv.getUint16(o, true) / 100 / 3.6; o += 2; }
-  if (flags & 2) o += 2;
-  if (flags & 4) { live.cadence = dv.getUint16(o, true) / 2; o += 2; }
-  if (flags & 8) o += 2;
-  if (flags & 16) o += 3;
-  if (flags & 32) o += 2;
-  if (flags & 64) { live.power = dv.getInt16(o, true); o += 2; }
-  live.at = performance.now();
-  if (!riding) { $('cad').textContent = Math.round(live.cadence) + ' rpm'; $('pwr').textContent = live.power + ' W'; }
 }
-function cpWrite(bytes) {
-  cpQueue = cpQueue.then(() => cp.writeValueWithResponse ? cp.writeValueWithResponse(bytes) : cp.writeValue(bytes)).catch(err => kstatus('Write failed: ' + err.message));
-  return cpQueue;
-}
-function sendSim(gradePct) {
-  const crr = parseFloat($('crr').value) || 0, cw = parseFloat($('cw').value) || 0, k = gearK();
-  const b = new DataView(new ArrayBuffer(7));
-  b.setUint8(0, 0x11);
-  b.setInt16(1, 0, true);
-  b.setInt16(3, Math.round(gradePct * 100), true);
-  b.setUint8(5, Math.min(255, Math.round(crr * 10000)));
-  b.setUint8(6, Math.min(255, Math.round(cw / k ** 3 * 100)));
-  return cpWrite(b.buffer);
-}
-const gearK = () => ((+$('tRing').value / +$('tCog').value) / (+$('fRing').value / +$('fCog').value)) || 1;
-
-$('connect').onclick = async () => {
-  if (device) { device.gatt.disconnect(); return; }
-  if (!navigator.bluetooth) { kstatus('Web Bluetooth not available. Use Chrome or Edge.'); return; }
-  try {
-    kstatus('Choose your Kickr in the dialog…');
-    device = await navigator.bluetooth.requestDevice({ filters: [{ services: [0x1826] }] });
-    device.addEventListener('gattserverdisconnected', () => {
-      device = null; cp = null; stopRide();
-      $('finish').disabled = samples.length < 2;
-      $('connect').textContent = 'Connect Kickr'; $('ridebtn').disabled = true; kstatus('Disconnected');
-    });
-    const srv = await (await device.gatt.connect()).getPrimaryService(0x1826);
-    const data = await srv.getCharacteristic(0x2ad2);
-    await data.startNotifications();
-    data.addEventListener('characteristicvaluechanged', onBikeData);
-    cp = await srv.getCharacteristic(0x2ad9);
-    await cp.startNotifications();
-    cp.addEventListener('characteristicvaluechanged', e => {
-      const v = e.target.value;
-      if (v.getUint8(0) === 0x80 && v.getUint8(2) !== 1) kstatus(`Trainer rejected op 0x${v.getUint8(1).toString(16)} (result ${v.getUint8(2)})`);
-    });
-    await cpWrite(Uint8Array.of(0x00));
-    await cpWrite(Uint8Array.of(0x07));
-    $('connect').textContent = 'Disconnect'; $('ridebtn').disabled = false;
-    kstatus(`Connected to ${device.name || 'trainer'}`);
-  } catch (err) { device = null; kstatus(err.name === 'NotFoundError' ? 'No device chosen' : 'Connect failed: ' + err.message); }
-};
-
-function gradeAt(d) {
-  const i1 = indexAtDist(d), i0 = indexAtDist(Math.max(0, d - 50));
-  const dd = P[i1][4] - P[i0][4];
-  return dd > 5 ? (P[i1][3] - P[i0][3]) / dd * 100 : 0;
-}
-function updateGhost() {
-  if (!$('ghostck').checked) { ghostDist = null; ghost.remove(); $('gap').textContent = '–'; return; }
-  const end = compT[compT.length - 1], gt = Math.min(rideT, end);
-  let lo = 0, hi = compT.length - 1;
-  while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (compT[mid] <= gt) lo = mid; else hi = mid - 1; }
-  const j = Math.min(lo + 1, P.length - 1), span = compT[j] - compT[lo], f = span > 0 ? Math.min(1, (gt - compT[lo]) / span) : 0;
-  ghostDist = P[lo][4] + (P[j][4] - P[lo][4]) * f;
-  ghost.setLatLng([P[lo][1] + (P[j][1] - P[lo][1]) * f, P[lo][2] + (P[j][2] - P[lo][2]) * f]);
-  if (!map.hasLayer(ghost)) ghost.addTo(map);
-  const dGap = rideDist - ghostDist, tGap = compT[indexAtDist(rideDist)] - rideT;
-  $('gap').textContent = `${dGap >= 0 ? '+' : '-'}${(Math.abs(dGap) / 1609.34).toFixed(2)} mi ${tGap >= 0 ? '+' : '-'}${fmt(Math.abs(tGap))}`;
-}
-function renderRide() {
-  const i = indexAtDist(rideDist), j = Math.min(i + 1, P.length - 1);
-  const span = P[j][4] - P[i][4], f = span > 0 ? Math.min(1, (rideDist - P[i][4]) / span) : 0;
-  updateGhost();
-  showPos(i, f);
-  scrub.value = Math.round(rideDist / totalDist * 1e6);
-  $('clock').textContent = new Date().toLocaleTimeString('en-US', { timeZone: TZ });
-  $('elapsed').textContent = fmt(rideT);
-  $('spd').textContent = (rideSpeed() * 2.23694).toFixed(1) + ' mph';
-  $('pwr').textContent = live.power + ' W';
-  $('cad').textContent = Math.round(live.cadence) + ' rpm';
-  $('grade').textContent = gradeAt(rideDist).toFixed(1) + ' %';
-}
-function rideSpeed() {
-  if (performance.now() - live.at > 3000) return 0;
-  if ($('spdsrc').value === 'trainer') return live.speed;
-  return live.cadence / 60 * (+$('fRing').value / +$('fCog').value) * (+$('wheel').value / 1000);
-}
-function rideFrame(ts) {
-  if (!riding) return;
-  if (rideLast !== null) {
-    const dt = (ts - rideLast) / 1000;
-    rideT += dt;
-    rideDist = Math.min(totalDist, rideDist + rideSpeed() * dt);
-  }
-  rideLast = ts;
-  const g = gradeAt(rideDist), sent = Math.max(-20, Math.min(20, g / gearK()));
-  if (lastSent === null || Math.abs(sent - lastSent) >= 0.2 || ts - lastSendAt > 3000) {
-    sendSim(sent); lastSent = sent; lastSendAt = ts;
-    $('gsent').textContent = sent.toFixed(1) + ' %';
-  }
-  if (Math.floor(rideT) > lastSample) {
-    lastSample = Math.floor(rideT);
-    const i = indexAtDist(rideDist), j = Math.min(i + 1, P.length - 1), span = P[j][4] - P[i][4], f = span > 0 ? (rideDist - P[i][4]) / span : 0;
-    samples.push([Date.now() / 1000, P[i][1] + (P[j][1] - P[i][1]) * f, P[i][2] + (P[j][2] - P[i][2]) * f, P[i][3] + (P[j][3] - P[i][3]) * f, rideDist, rideSpeed(), live.power, Math.round(live.cadence)]);
-  }
-  renderRide();
-  if (rideDist >= totalDist) { finishRide(); return; }
-  requestAnimationFrame(rideFrame);
-}
-function startRide() {
-  setPlaying(false);
-  if (finished) { finished = false; samples = []; rideT = 0; if (rideDist >= totalDist) rideDist = 0; }
-  riding = true; rideLast = null; lastSent = null; lastSample = -1;
-  if (rideDist >= totalDist) rideDist = 0;
-  trail.setLatLngs([]);
-  $('ridebtn').textContent = 'Pause ride'; $('finish').disabled = false; $('exportride').disabled = true;
-  document.body.classList.add('riding');
-  kstatus(`Riding. Grade scaled by 1/${gearK().toFixed(3)} for the ${$('fRing').value}/${$('fCog').value} feel.`);
-  requestAnimationFrame(rideFrame);
-}
-function stopRide() {
-  if (!riding) return;
-  riding = false;
-  if (cp) sendSim(0);
-  $('ridebtn').textContent = samples.length ? 'Resume ride' : 'Start ride';
-  $('finish').disabled = samples.length < 2;
-  document.body.classList.remove('riding');
-}
-function finishRide() {
-  stopRide();
-  finished = true;
-  ghostDist = null; ghost.remove();
-  $('ridebtn').textContent = 'Start ride'; $('finish').disabled = true; $('exportride').disabled = samples.length < 2;
-  const sN = samples[samples.length - 1], avgW = Math.round(samples.reduce((s, x) => s + x[6], 0) / samples.length);
-  kstatus(`Finished: ${(sN[4] / 1609.34).toFixed(2)} mi in ${fmt(rideT)}, ${avgW} W avg. Export the TCX, then upload at strava.com/upload/select as a Virtual Ride.`);
-}
-$('ridebtn').onclick = () => riding ? stopRide() : startRide();
-$('finish').onclick = finishRide;
-$('ghostck').onchange = () => { if (riding || samples.length) renderRide(); else { ghostDist = null; ghost.remove(); } };
-
-$('exportride').onclick = () => {
-  const iso = t => new Date(t * 1000).toISOString();
-  const s0 = samples[0], sN = samples[samples.length - 1];
-  let out = `<?xml version="1.0" encoding="UTF-8"?>\n<TrainingCenterDatabase xmlns="http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2" xmlns:ns3="http://www.garmin.com/xmlschemas/ActivityExtension/v2">\n<Activities><Activity Sport="Biking"><Id>${iso(s0[0])}</Id><Notes>${esc(ride.name)} (Ride Replay, virtual)</Notes>\n<Lap StartTime="${iso(s0[0])}"><TotalTimeSeconds>${Math.round(rideT)}</TotalTimeSeconds><DistanceMeters>${sN[4].toFixed(1)}</DistanceMeters><Intensity>Active</Intensity><TriggerMethod>Manual</TriggerMethod><Track>\n`;
-  for (const s of samples) {
-    out += `<Trackpoint><Time>${iso(s[0])}</Time><Position><LatitudeDegrees>${s[1].toFixed(6)}</LatitudeDegrees><LongitudeDegrees>${s[2].toFixed(6)}</LongitudeDegrees></Position><AltitudeMeters>${s[3].toFixed(1)}</AltitudeMeters><DistanceMeters>${s[4].toFixed(1)}</DistanceMeters><Cadence>${s[7]}</Cadence><Extensions><ns3:TPX><ns3:Speed>${s[5].toFixed(2)}</ns3:Speed><ns3:Watts>${s[6]}</ns3:Watts></ns3:TPX></Extensions></Trackpoint>\n`;
-  }
-  out += `</Track></Lap></Activity></Activities>\n</TrainingCenterDatabase>\n`;
-  download(out, safeName() + '_myride.tcx', 'application/vnd.garmin.tcx+xml');
-  kstatus(`Exported ${samples.length} samples to ${safeName()}_myride.tcx. Upload at strava.com/upload/select and set the type to Virtual Ride.`);
-};
+$('load').onclick = () => $('file').click();
+$('file').onchange = e => { if (e.target.files[0]) loadFile(e.target.files[0]); e.target.value = ''; };
+addEventListener('dragover', e => e.preventDefault());
+addEventListener('drop', e => { e.preventDefault(); if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]); });
 
 sizeProfile();
+const q = new URLSearchParams(location.search);
+if (q.has('f')) fetch(q.get('f').split('/').map(encodeURIComponent).join('/')).then(r => { if (!r.ok) throw new Error(r.statusText); return r.blob(); }).then(b => loadFile(new File([b], q.get('f').split('/').pop()))).catch(err => status('Load failed: ' + err.message));
 </script>
 </body>
 </html>
