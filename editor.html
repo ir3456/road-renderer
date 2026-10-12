@@ -118,7 +118,7 @@ function loadRide(r) {
   latlngs = P.map(p => [p[1], p[2]]);
   totalDist = P[P.length - 1][4];
   route.setLatLngs(latlngs); trail.setLatLngs([]);
-  map.fitBounds(route.getBounds(), { padding: [30, 30] });
+  map.fitBounds(route.getBounds(), { padding: [30, 30], animate: false });
   $('exportname').value = safeName() + '_fixed';
   $('title').textContent = r.name + ' · ' + (r.hasTime ? new Date(r.start * 1000).toLocaleDateString('en-US', { timeZone: TZ, dateStyle: 'long' }) : 'route, no timestamps');
   $('unstop').disabled = !r.hasTime;

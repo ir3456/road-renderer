@@ -17,6 +17,8 @@ export function parseGpx(text) {
   return { name, x, y, ele, dist, t: hasTime ? t : null, total: dist[dist.length - 1] };
 }
 
+export const toLatLon = (track, x, y) => { const R = 6371000; return [y / R * 180 / Math.PI, x / (R * Math.cos(track.y[0] / R)) * 180 / Math.PI]; };
+
 export function smooth(arr, win) {
   const half = Math.floor(win / 2), n = arr.length, out = new Array(n);
   if (half < 1) return Array.from(arr);

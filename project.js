@@ -23,12 +23,7 @@ export function project(road, playerZ, P, W, H, actors = []) {
   const L = road.L, base = Math.min(road.n - 2, Math.floor(playerZ / L)), basePct = playerZ / L - base;
   const camDepth = 1 / Math.tan(P.fov / 2 * Math.PI / 180);
   const y0 = roadYAt(road, playerZ);
-  let horizon = H / 2;
-  if (P.pitchFollow !== 0) {
-    const ahead = Math.min(road.total - 1, playerZ + P.pitchAhead);
-    const grade = (roadYAt(road, ahead) - y0) / Math.max(1, ahead - playerZ);
-    horizon = H / 2 + P.pitchFollow * grade * camDepth * H / 2;
-  }
+  const horizon = H / 2;
   const hw = road.hw, N = Math.min(P.drawDist, road.n - base - 1);
   const pos = {
     x: road.x[base] + basePct * (road.x[base + 1] - road.x[base]),
