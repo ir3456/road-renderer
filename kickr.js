@@ -1,5 +1,7 @@
 export const live = { speed: 0, cadence: 0, power: 0, at: 0, device: null };
-let cp = null, queue = Promise.resolve();
+let cp = null, queue = Promise.resolve(), listener = () => {};
+/** Called after every bike-data notification; these keep arriving in a background tab, unlike animation frames. */
+export const onData = cb => listener = cb;
 
 function onBikeData(e) {
   const dv = e.target.value, flags = dv.getUint16(0, true);
@@ -12,6 +14,7 @@ function onBikeData(e) {
   if (flags & 32) o += 2;
   if (flags & 64) { live.power = dv.getInt16(o, true); o += 2; }
   live.at = performance.now();
+  listener();
 }
 const write = bytes => queue = queue.then(() => cp.writeValueWithResponse ? cp.writeValueWithResponse(bytes) : cp.writeValue(bytes)).catch(() => {});
 

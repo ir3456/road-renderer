@@ -122,7 +122,7 @@ const fmt = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2,
 // ---------- state ----------
 let track = null, road = null, scene = null, ghost = null, ridePath = null;
 let theme = null, assets = null;
-let playerZ = 0, playing = false, lastTs = 0, rideT = 0, ghostT = 0, ghostZ = null;
+let playerZ = 0, playing = false, rideT = 0, ghostT = 0, ghostZ = null;
 let ride = null, gradeNow = 0, gradeClip = false, lastGradeSent = null, liveV = 0;
 const minimap = createMinimap($('map'), $('mmN'));
 const profile = createProfile($('profile'), seek);
@@ -350,24 +350,30 @@ function drawHud(frame) {
     (ride ? `\nride  ${fmt((Date.now() - ride.startedAt) / 1000)}  ${playing ? 'recording' : 'paused'}` : '');
   minimap.update(frame.pos.x, frame.pos.y, frame.pos.heading, ghostZ !== null ? roadXY(ghostZ) : null, P.mapTiles);
 }
-function frame(ts) {
-  const dt = Math.min(0.1, (ts - lastTs) / 1000); lastTs = ts;
+let lastStep = performance.now();
+/** Advances the simulation by the wall-clock time since the last call. Runs from every frame and from every trainer notification, so a hidden tab still makes progress while pedaling. */
+function step() {
+  const now = performance.now(), dt = Math.min(kickr.live.device ? 5 : 0.1, (now - lastStep) / 1000); lastStep = now;
   const vRaw = P.trainerSpeed === 'cadence' ? (kickr.speed() ? kickr.live.cadence / 60 * P.virtRing / P.virtCog * P.wheel / 1000 : 0) : kickr.speed() / gearK();
   liveV += (vRaw - liveV) * Math.min(1, dt * 2);
+  if (!road) return;
+  const gi = Math.min(road.n - 2, Math.floor(playerZ / road.L)), gj = Math.min(road.n - 1, gi + Math.round(20 / road.L));
+  gradeNow = Math.round((road.ele[gj] - road.ele[gi]) / ((gj - gi) * road.L) * 200) / 2;
+  if (!playing) return;
+  rideT += dt; ghostT += dt * ghostPct.value / 100;
+  setZ(playerZ + speedNow() * dt);
+  if (ride) record(ride, playerZ, kickr.live);
+  if (playerZ >= road.total - 1) ride ? rideDone() : setPlaying(false);
+  if (modeSel.value === 'live' && kickr.live.device) {
+    const key = `${gradeNow}|${gearK()}|${P.crr}|${P.cw}`;
+    if (key !== lastGradeSent) { gradeClip = Math.abs(kickr.setGrade(gradeNow, P.crr, P.cw, gearK())) === 20; lastGradeSent = key; }
+  }
+}
+kickr.onData(step);
+function frame() {
+  step();
   const actors = [];
   if (road) {
-    const gi = Math.min(road.n - 2, Math.floor(playerZ / road.L)), gj = Math.min(road.n - 1, gi + Math.round(20 / road.L));
-    gradeNow = Math.round((road.ele[gj] - road.ele[gi]) / ((gj - gi) * road.L) * 200) / 2;
-    if (playing) {
-      rideT += dt; ghostT += dt * ghostPct.value / 100;
-      setZ(playerZ + speedNow() * dt);
-      if (ride) record(ride, playerZ, kickr.live);
-      if (playerZ >= road.total - 1) ride ? rideDone() : setPlaying(false);
-      if (modeSel.value === 'live' && kickr.live.device) {
-        const key = `${gradeNow}|${gearK()}|${P.crr}|${P.cw}`;
-        if (key !== lastGradeSent) { gradeClip = Math.abs(kickr.setGrade(gradeNow, P.crr, P.cw, gearK())) === 20; lastGradeSent = key; }
-      }
-    }
     ghostZ = ghost && ghostCk.checked ? Math.min(road.total - 1, ghost.distAt(ghostT)) : null;
     if (P.riderSprite === 'on') actors.push({ z: playerZ + 3.5, offset: 1.2, kind: 'rider', frame: Math.floor(playerZ / P.pedalStride) });
     if (ghostZ !== null) actors.push({ z: ghostZ + 3.5, offset: -1.2, kind: 'ghost', frame: Math.floor(ghostZ / P.pedalStride) });
