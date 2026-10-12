@@ -1,20 +1,20 @@
 export function parseGpx(text) {
   const doc = new DOMParser().parseFromString(text, 'application/xml');
-  const pts = [...doc.getElementsByTagName('trkpt'), ...doc.getElementsByTagName('rtept')];
-  if (pts.length < 2) throw new Error('no track points');
-  const lat0 = +pts[0].getAttribute('lat') * Math.PI / 180;
-  const R = 6371000, cosLat = Math.cos(lat0);
-  const x = [], y = [], ele = [], dist = [0], t = [];
-  let hasTime = true;
-  for (const p of pts) {
-    const lat = +p.getAttribute('lat') * Math.PI / 180, lon = +p.getAttribute('lon') * Math.PI / 180;
+  const pts = [...doc.getElementsByTagName('trkpt'), ...doc.getElementsByTagName('rtept')].map(p => {
     const e = p.getElementsByTagName('ele')[0], tm = p.getElementsByTagName('time')[0];
-    x.push(R * lon * cosLat); y.push(R * lat); ele.push(e ? +e.textContent : 0);
-    if (tm) t.push(Date.parse(tm.textContent) / 1000); else hasTime = false;
-  }
+    return { lat: +p.getAttribute('lat'), lon: +p.getAttribute('lon'), ele: e ? +e.textContent : 0, time: tm ? Date.parse(tm.textContent) / 1000 : null };
+  });
+  return makeTrack((doc.getElementsByTagName('name')[0] || {}).textContent || 'track', pts);
+}
+
+/** Track in local meters from [{ lat, lon, ele, time? }]: x east, y north from the first point, cumulative dist, t in seconds or null when any point lacks a time. */
+export function makeTrack(name, pts) {
+  if (pts.length < 2) throw new Error('no track points');
+  const R = 6371000, cosLat = Math.cos(pts[0].lat * Math.PI / 180);
+  const x = pts.map(p => R * p.lon * Math.PI / 180 * cosLat), y = pts.map(p => R * p.lat * Math.PI / 180), ele = pts.map(p => p.ele), dist = [0];
   for (let i = 1; i < x.length; i++) dist.push(dist[i - 1] + Math.hypot(x[i] - x[i - 1], y[i] - y[i - 1]));
-  const name = (doc.getElementsByTagName('name')[0] || {}).textContent || 'track';
-  return { name, x, y, ele, dist, t: hasTime ? t : null, total: dist[dist.length - 1] };
+  const t = pts.every(p => p.time != null) ? pts.map(p => p.time) : null;
+  return { name, x, y, ele, dist, t, total: dist[dist.length - 1] };
 }
 
 export const toLatLon = (track, x, y) => { const R = 6371000; return [y / R * 180 / Math.PI, x / (R * Math.cos(track.y[0] / R)) * 180 / Math.PI]; };
