@@ -16,7 +16,7 @@ Press Esc or click the road for the menu. The Ride tab lists every `.gpx` in the
 
 Transport bar: Play, speed source (constant km/h, recorded × multiplier, live trainer), Ghost toggle with its speed percent, Snap ghost, Connect trainer, scrub. Keys: `space` play, `←`/`→` 10 m (shift 100 m), `↑`/`↓` speed, `home` start, `g` snap ghost, `,`/`.` shift the virtual gear.
 
-`Start ride` records a ride driven by the selected speed source (normally Live trainer): one sample per second of position, power and cadence. While riding, seeking only works when paused and asks for confirmation; reaching the end pauses with Restart / Join elsewhere / Finish; `Finish ride` writes a Strava-ready GPX (`VirtualRide`, power and cadence extensions) to `rides/` through the server and downloads it.
+`Start ride` switches the speed source to Live trainer and locks it until the ride ends, recording one sample per second of position, power and cadence. While riding, seeking only works when paused and asks for confirmation; reaching the end pauses with Restart / Join elsewhere / Finish; `Finish ride` writes a Strava-ready GPX (`VirtualRide`, power and cadence extensions) to `rides/` through the server and downloads it.
 
 URL params: `?f=sample_big_cottonwood.gpx&z=6700` loads a file at a distance in meters (and its `.scene.json` if present); any lever key overrides its saved value (`&farGain=3&theme=flat`).
 

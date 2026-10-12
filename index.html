@@ -279,7 +279,7 @@ async function settleRide() {
   if (a === 'Finish & export') await finishRide(); else if (a === 'Discard') endRide();
   return !ride;
 }
-function endRide() { ride = null; rideBtn.hidden = false; finishBtn.hidden = true; setPlaying(false); }
+function endRide() { ride = null; rideBtn.hidden = false; finishBtn.hidden = true; modeSel.disabled = false; setPlaying(false); }
 async function finishRide() {
   const posAt = z => { const [lat, lon] = toLatLon(track, ...roadXY(z)); return { lat, lon, ele: road.ele[Math.min(road.n - 1, Math.floor(z / road.L))] }; };
   const gpx = toGpx(ride, track.name || 'Ride', posAt), d = new Date(ride.startedAt), pad = n => String(n).padStart(2, '0');
@@ -296,7 +296,7 @@ async function rideDone() {
 playBtn.onclick = togglePlay;
 scrub.oninput = () => { if (road && !ride) seek(scrub.value / 1000 * road.total); };
 scrub.onchange = () => { if (road && ride) seek(scrub.value / 1000 * road.total); };
-rideBtn.onclick = () => { if (!road) return; ride = startRide(); rideBtn.hidden = true; finishBtn.hidden = false; setPlaying(true); };
+rideBtn.onclick = () => { if (!road) return; ride = startRide(); rideBtn.hidden = true; finishBtn.hidden = false; modeSel.value = 'live'; modeSel.disabled = true; setPlaying(true); };
 finishBtn.onclick = async () => { setPlaying(false); if (await ask('Finish the ride and export it?', ['Finish', 'Cancel']) === 'Finish') finishRide(); };
 $('loadBtn').onclick = () => $('file').click();
 $('file').onchange = e => loadFiles(e.target.files);
