@@ -1,0 +1,94 @@
+{
+ "rocktile": {
+  "file": "rocktile.png",
+  "anchorX": 16.0,
+  "anchorY": 32,
+  "meters": 4
+ },
+ "bankL": {
+  "file": "bankL.png",
+  "anchorX": 16.0,
+  "anchorY": 24,
+  "meters": 4
+ },
+ "bankR": {
+  "file": "bankR.png",
+  "anchorX": 16.0,
+  "anchorY": 24,
+  "meters": 4
+ },
+ "cliff": {
+  "file": "cliff.png",
+  "anchorX": 16.0,
+  "anchorY": 40,
+  "meters": 4
+ },
+ "cabin": {
+  "file": "cabin.png",
+  "anchorX": 16.0,
+  "anchorY": 28,
+  "meters": 5,
+  "faceRoad": true
+ },
+ "rider": {
+  "file": "rider.png",
+  "anchorX": 8.0,
+  "anchorY": 24,
+  "meters": 1.7
+ },
+ "ghost": {
+  "file": "ghost.png",
+  "anchorX": 8.0,
+  "anchorY": 24,
+  "meters": 1.7
+ },
+ "pine": {
+  "file": "pine.png",
+  "anchorX": 12.0,
+  "anchorY": 48,
+  "meters": 14
+ },
+ "tree": {
+  "file": "tree.png",
+  "anchorX": 16.0,
+  "anchorY": 40,
+  "meters": 10
+ },
+ "bush": {
+  "file": "bush.png",
+  "anchorX": 10.0,
+  "anchorY": 12,
+  "meters": 2
+ },
+ "rock": {
+  "file": "rock.png",
+  "anchorX": 12.0,
+  "anchorY": 14,
+  "meters": 3
+ },
+ "sign": {
+  "file": "sign.png",
+  "anchorX": 6.0,
+  "anchorY": 32,
+  "meters": 3.5
+ },
+ "stopsign": {
+  "file": "stopsign.png",
+  "anchorX": 6.0,
+  "anchorY": 36,
+  "meters": 2.4
+ },
+ "signal": {
+  "file": "signal.png",
+  "anchorX": 5.0,
+  "anchorY": 48,
+  "meters": 4.5
+ },
+ "building": {
+  "file": "building.png",
+  "anchorX": 32.0,
+  "anchorY": 64,
+  "meters": 14,
+  "faceRoad": true
+ }
+}

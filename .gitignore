@@ -1,0 +1,6 @@
+tiles/
+rides/
+strava_exports/
+.venv/
+__pycache__/
+.DS_Store

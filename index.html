@@ -1,0 +1,511 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>GPX Road Renderer</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+  html, body { margin: 0; height: 100%; background: #111; color: #ddd; font: 13px/1.4 -apple-system, system-ui, sans-serif; overflow: hidden; }
+  #app { display: grid; grid-template-rows: 1fr auto; height: 100vh; }
+  #view { grid-column: 1; grid-row: 1; position: relative; background: #000; overflow: hidden; }
+  #road { display: block; width: 100%; height: 100%; }
+  #minimap { position: absolute; right: 10px; top: 10px; width: 180px; height: 180px; cursor: pointer; background: #222; border: 1px solid #444; border-radius: 4px; overflow: hidden; }
+  #map { position: absolute; left: -38px; top: -38px; width: 256px; height: 256px; background: #222; }
+  #mmN { position: absolute; left: 50%; top: 50%; width: 20px; margin: -10px; z-index: 1000; text-align: center; color: #aaa; font-weight: 600; pointer-events: none; text-shadow: 0 0 3px #000; }
+  .mmArrow { width: 0; height: 0; border: 7px solid transparent; border-bottom: 16px solid #f33; margin: -11px 0 0 -7px; filter: drop-shadow(0 0 2px #000); }
+  #hud { position: absolute; left: 10px; top: 10px; background: rgba(0,0,0,.55); padding: 6px 10px; border-radius: 4px; font-variant-numeric: tabular-nums; white-space: pre; line-height: 1.5; }
+  #drop { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #888; font-size: 18px; pointer-events: none; }
+  #menu { position: absolute; inset: 0; background: rgba(0,0,0,.7); display: flex; align-items: center; justify-content: center; font-family: ui-monospace, Menlo, monospace; }
+  #menu[hidden] { display: none; }
+  #ask { position: absolute; inset: 0; background: rgba(0,0,0,.5); display: flex; align-items: center; justify-content: center; font-family: ui-monospace, Menlo, monospace; }
+  #ask[hidden] { display: none; }
+  #askBox { background: #101828; border: 3px solid #8ab4f8; box-shadow: 0 0 0 3px #101828, 0 0 0 5px #eee; padding: 14px 18px; }
+  #askBox p { margin: 0 0 12px; }
+  #menuBox { width: 540px; max-height: 85%; background: #101828; border: 3px solid #8ab4f8; box-shadow: 0 0 0 3px #101828, 0 0 0 5px #eee; display: flex; flex-direction: column; }
+  #tabs { display: flex; border-bottom: 3px solid #8ab4f8; }
+  #tabs button { flex: 1; border: 0; border-radius: 0; background: none; padding: 8px 4px; text-transform: uppercase; letter-spacing: .06em; font-size: 11px; }
+  #tabs button.on { background: #8ab4f8; color: #101828; }
+  #pages { overflow-y: auto; padding: 10px 16px 14px; }
+  .page[hidden] { display: none; }
+  .ride { display: flex; justify-content: space-between; width: 100%; text-align: left; margin: 4px 0; }
+  .ride span { color: #8ab4f8; }
+  .ride.on { border-color: #8ab4f8; }
+  #confirm > div { flex-basis: 100%; display: flex; justify-content: space-between; margin-bottom: 6px; }
+  #confirm span { color: #8ab4f8; }
+  #buildLog { white-space: pre; color: #8ab4f8; font-size: 11px; margin-top: 8px; max-height: 120px; overflow-y: auto; }
+  #rides:empty::after { content: 'no rides listed (run serve.py)'; color: #888; }
+  .lever { display: grid; grid-template-columns: 1fr 58px; align-items: center; gap: 6px; margin: 3px 0; }
+  .lever label { grid-column: 1 / span 2; display: flex; justify-content: space-between; color: #bbb; }
+  .lever label b { color: #eee; font-weight: 500; font-variant-numeric: tabular-nums; }
+  .lever input[type=range] { grid-column: 1 / span 2; width: 100%; margin: 0; }
+  .lever select { grid-column: 1 / span 2; }
+  #transport { background: #1b1b1b; border-top: 1px solid #333; padding: 8px 12px; display: flex; flex-direction: column; gap: 6px; }
+  .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  #profile { width: 100%; height: 70px; display: block; cursor: crosshair; background: #151515; border-radius: 3px; }
+  #scrub { flex: 1; margin: 0; }
+  button, select, input[type=number] { background: #2a2a2a; color: #eee; border: 1px solid #444; border-radius: 4px; padding: 4px 10px; font: inherit; }
+  button { cursor: pointer; } button:hover { background: #363636; }
+  input[type=number] { width: 60px; }
+  .stat { font-variant-numeric: tabular-nums; color: #aaa; }
+  .stat b { color: #8ab4f8; font-weight: 600; }
+  #kstatus { color: #8ab4f8; }
+  kbd { background: #2a2a2a; border: 1px solid #444; border-radius: 3px; padding: 0 4px; font-size: 11px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="view">
+    <canvas id="road"></canvas>
+    <div id="hud"></div>
+    <div id="minimap"><div id="map"></div><div id="mmN">N</div></div>
+    <div id="drop">Press Esc or click the road for the menu, or drop a GPX (plus .scene.json) here</div>
+    <div id="ask" hidden><div id="askBox"><p id="askText"></p><div class="row" id="askBtns"></div></div></div>
+    <div id="menu" hidden><div id="menuBox"><div id="tabs"></div><div id="pages">
+      <div class="page" id="ridePage">
+        <div id="rides"></div>
+        <div id="confirm" class="row" hidden></div>
+        <div id="buildLog"></div>
+        <div class="row" style="margin-top:10px">
+          <input type="file" id="file" accept=".gpx,.json" multiple style="display:none">
+          <button id="loadBtn">Load file…</button>
+          <button id="resetBtn" title="Reset all levers to defaults">Reset levers</button>
+          <button id="closeBtn">Resume</button>
+        </div>
+        <div style="color:#999;margin-top:12px"><kbd>esc</kbd> menu &nbsp; <kbd>space</kbd> play/pause &nbsp; <kbd>←</kbd><kbd>→</kbd> step 10 m (shift: 100 m) &nbsp; <kbd>↑</kbd><kbd>↓</kbd> speed &nbsp; <kbd>home</kbd> start</div>
+      </div>
+    </div></div></div>
+  </div>
+  <div id="transport">
+    <canvas id="profile"></canvas>
+    <div class="row">
+      <button id="menuBtn">Menu</button>
+      <button id="playBtn">Play</button>
+      <button id="rideBtn">Start ride</button>
+      <button id="finishBtn" hidden>Finish ride</button>
+      <select id="mode">
+        <option value="const">Constant speed</option>
+        <option value="gpx" disabled>Recorded speed</option>
+        <option value="live">Live trainer</option>
+      </select>
+      <label class="stat">km/h <input type="number" id="speed" value="30" min="1" max="300" step="1"></label>
+      <label class="stat">× <input type="number" id="mult" value="1" min="0.1" max="50" step="0.5" title="Time multiplier for recorded speed"></label>
+      <label class="stat"><input type="checkbox" id="ghostck" checked> Ghost</label>
+      <button id="connectBtn">Connect trainer</button><span class="stat" id="kstatus"></span>
+      <input type="range" id="scrub" min="0" max="1000" value="0">
+      <span class="stat" id="pos"></span>
+    </div>
+  </div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script type="module">
+import { parseGpx, buildRoad as buildRoadModel } from './road.js';
+import { render } from './render.js';
+import { loadSprites } from './sprites.js';
+import { placeholderScene, applyScene } from './scene.js';
+import { makeGhost } from './ghost.js';
+import * as kickr from './kickr.js';
+import { startRide, record, toGpx } from './ride.js';
+
+// ---------- levers ----------
+const LEVERS = [
+  { group: 'Road geometry (rebuilds)' },
+  { key: 'segLen',       label: 'Segment length (m)',       min: 1,   max: 25,   step: 1,    def: 1,   rebuild: true },
+  { key: 'eleSmooth',    label: 'Elevation smoothing (m)',  min: 0,   max: 400,  step: 5,    def: 110, rebuild: true },
+  { key: 'curveSmooth',  label: 'Curve smoothing (m)',      min: 0,   max: 400,  step: 5,    def: 20,  rebuild: true },
+  { key: 'straightWin',  label: 'Straighten window (m)',    min: 20,  max: 400,  step: 10,   def: 200, rebuild: true },
+  { key: 'straightDeg',  label: 'Straighten deadband (deg)', min: 0,   max: 10,   step: 0.5,  def: 2,   rebuild: true },
+  { key: 'trendWindow',  label: 'Hill trend window (m)',    min: 100, max: 3000, step: 50,   def: 100, rebuild: true },
+  { group: 'Feel' },
+  { key: 'curveStrength',label: 'Curve strength',           min: 0,   max: 4,    step: 0.05, def: 3.8 },
+  { key: 'gradeGain',    label: 'Grade gain (trend)',       min: 0,   max: 20,   step: 0.5,  def: 3,   rebuild: true },
+  { key: 'gradeCap',     label: 'Grade cap (%, soft)',      min: 5,   max: 300,  step: 5,    def: 130, rebuild: true },
+  { key: 'hillScale',    label: 'Hill scale (bumps)',       min: 0,   max: 40,   step: 0.5,  def: 9.5, rebuild: true },
+  { key: 'farGain',      label: 'Far gain (hill rears up ahead)', min: 1, max: 10, step: 0.25, def: 1.5 },
+  { key: 'farGainDist',  label: 'Far gain distance (m)',    min: 20,  max: 1000, step: 10,   def: 50 },
+  { key: 'roadWidth',    label: 'Road width (m)',           min: 2,   max: 40,   step: 0.5,  def: 8.5 },
+  { group: 'Camera' },
+  { key: 'camHeight',    label: 'Camera height (m)',        min: 0.3, max: 40,   step: 0.1,  def: 1.8 },
+  { key: 'fov',          label: 'Field of view (deg)',      min: 30,  max: 150,  step: 1,    def: 85 },
+  { key: 'drawDist',     label: 'Draw distance (segments)', min: 20,  max: 1500, step: 10,   def: 390 },
+  { key: 'pitchFollow',  label: 'Pitch follows grade (-1..1)', min: -1, max: 1, step: 0.05, def: 0 },
+  { key: 'pitchAhead',   label: 'Pitch look-ahead (m)',     min: 5,   max: 400,  step: 5,    def: 5 },
+  { group: 'Look' },
+  { key: 'theme',        label: 'Theme', options: { arcade: 'Arcade palette', flat: 'Flat' }, def: 'arcade' },
+  { key: 'res',          label: 'Resolution', options: { '320x224': '320 × 224 (OutRun, System 32, Genesis)', '256x224': '256 × 224 (SNES)', '384x224': '384 × 224 (wide)', '480x270': '480 × 270 (16:9)', native: 'Native (no pixels)' }, def: '256x224' },
+  { key: 'pixelFit',     label: 'Pixel fit', options: { integer: 'Integer zoom (letterbox)', fit: 'Fit (keep aspect)', stretch: 'Stretch' }, def: 'integer' },
+  { key: 'skyline',      label: 'Skyline', options: { terrain: 'Terrain (from scene file)', procedural: 'Procedural ridges' }, def: 'terrain' },
+  { key: 'riderSprite',  label: 'Rider sprite', options: { on: 'Show', off: 'Hide' }, def: 'off' },
+  { key: 'pedalStride',  label: 'Pedal animation (m per frame)', min: 0.5, max: 5, step: 0.25, def: 1.5 },
+  { key: 'terrain',      label: 'Roadside terrain', options: { shoulders: 'Sloped shoulders', wall: 'Textured wall', banks: 'Sprite banks', off: 'Off' }, def: 'shoulders' },
+  { key: 'terrainScale', label: 'Terrain height scale', min: 0, max: 3, step: 0.1, def: 0.5 },
+  { key: 'mapTiles',     label: 'Minimap tiles', options: { streets: 'Streets', topo: 'Topo', satellite: 'Satellite', dark: 'Dark' }, def: 'streets' },
+  { key: 'sceneDensity', label: 'Scenery (sprites per km per side)', min: 0, max: 400, step: 10, def: 140, rebuild: true },
+  { group: 'Map roads (rebuilds)' },
+  { key: 'mapRoads',     label: 'Road width & lanes from map', options: { on: 'On', off: 'Off (use Road width)' }, def: 'on', rebuild: true },
+  { key: 'roadScale',    label: 'Map road width scale',       min: 0.5, max: 3,  step: 0.1,  def: 2, rebuild: true },
+  { key: 'junctions',    label: 'Intersections', options: { on: 'On', off: 'Off' }, def: 'on', rebuild: true },
+  { key: 'juncMin',      label: 'Smallest side road drawn', options: { all: 'Everything (paths, alleys)', streets: 'Streets and up', collector: 'Collectors and up' }, def: 'streets', rebuild: true },
+  { key: 'juncSigns',    label: 'Stop signs & signals', options: { on: 'On', off: 'Off' }, def: 'on', rebuild: true },
+  { key: 'streetSigns',  label: 'Street name signs', options: { on: 'On', off: 'Off' }, def: 'on', rebuild: true },
+  { key: 'stripeLen',    label: 'Stripe length (segments)', min: 1,   max: 20,   step: 1,    def: 4 },
+  { key: 'fog',          label: 'Fog (fraction of draw dist)', min: 0, max: 1,  step: 0.05, def: 0.2 },
+  { group: 'Trainer' },
+  { key: 'physRing',     label: 'Physical chainring (teeth)', min: 20, max: 60, step: 1, def: 34 },
+  { key: 'physCog',      label: 'Physical cog (teeth)',       min: 9,  max: 36, step: 1, def: 14 },
+  { key: 'virtRing',     label: 'Virtual chainring (teeth)',  min: 20, max: 60, step: 1, def: 39 },
+  { key: 'virtCog',      label: 'Virtual cog (teeth, shift with , and .)', min: 9, max: 36, step: 1, def: 14 },
+  { key: 'cassette',     label: 'Virtual cassette', options: { '11-28': '11-28', '11-32': '11-32', '11-34': '11-34', '12-25': '12-25' }, def: '11-28' },
+  { key: 'trainerSpeed', label: 'Route speed from', options: { trainer: 'Trainer speed ÷ gear factor', cadence: 'Cadence × virtual gear' }, def: 'trainer' },
+  { key: 'wheel',        label: 'Wheel circumference (mm)',   min: 1800, max: 2400, step: 5, def: 2105 },
+  { key: 'mass',         label: 'Rider + bike mass (kg, model only)', min: 40, max: 150, step: 1, def: 80 },
+  { key: 'crr',          label: 'Rolling resistance crr',    min: 0.002, max: 0.012, step: 0.0005, def: 0.004 },
+  { key: 'cw',           label: 'Wind resistance cw (kg/m)', min: 0.1, max: 0.6, step: 0.01, def: 0.2 },
+];
+const P = {};
+const tabsEl = document.getElementById('tabs'), pagesEl = document.getElementById('pages');
+const pages = [{ name: 'Ride', page: document.getElementById('ridePage') }];
+let leversEl;
+for (const L of LEVERS) {
+  if (L.group) { leversEl = document.createElement('div'); leversEl.className = 'page'; leversEl.hidden = true; pagesEl.appendChild(leversEl); pages.push({ name: L.group.replace(/ \(.*\)/, ''), page: leversEl }); continue; }
+  P[L.key] = L.def;
+  const d = document.createElement('div'); d.className = 'lever';
+  const lab = document.createElement('label'); lab.innerHTML = `<span>${L.label}</span><b></b>`;
+  d.appendChild(lab);
+  let inp;
+  if (L.options) {
+    inp = document.createElement('select');
+    for (const [v, t] of Object.entries(L.options)) { const o = document.createElement('option'); o.value = v; o.textContent = t; inp.appendChild(o); }
+  } else {
+    inp = document.createElement('input'); inp.type = 'range'; inp.min = L.min; inp.max = L.max; inp.step = L.step;
+  }
+  L.input = inp; L.valueEl = lab.querySelector('b');
+  inp.addEventListener('input', () => { P[L.key] = L.options ? inp.value : +inp.value; L.valueEl.textContent = L.options ? '' : P[L.key]; saveLevers(); if (L.rebuild) buildRoad(); if (L.key === 'theme') loadTheme(); });
+  d.appendChild(inp); leversEl.appendChild(d);
+}
+for (const t of pages) {
+  const b = document.createElement('button'); b.textContent = t.name; tabsEl.appendChild(b);
+  b.onclick = () => { for (const u of pages) { u.page.hidden = u !== t; u.btn.classList.toggle('on', u === t); } };
+  t.btn = b;
+}
+pages[0].btn.click();
+const menu = document.getElementById('menu'), ridesEl = document.getElementById('rides'), buildLog = document.getElementById('buildLog');
+let ridePath = null, buildTimer = null;
+function listRides() {
+  fetch('rides.json').then(r => r.json()).then(list => {
+    ridesEl.innerHTML = '';
+    for (const r of list) {
+      const b = document.createElement('button'); b.className = 'ride' + (r.path === ridePath ? ' on' : '');
+      b.innerHTML = `${r.path}<span>${r.scene ? 'scene' : 'no scene'}</span>`; b.onclick = () => pick(r); ridesEl.appendChild(b);
+    }
+  }).catch(() => {});
+}
+const confirmEl = document.getElementById('confirm');
+function pick(r) {
+  confirmEl.hidden = false; ridesEl.hidden = true;
+  confirmEl.innerHTML = `<div>${r.path}<span>${r.scene ? 'scene built ✓' : 'no scene data yet'}</span></div>`;
+  const btn = (t, fn) => { const b = document.createElement('button'); b.textContent = t; b.onclick = () => { confirmEl.hidden = true; ridesEl.hidden = false; fn(); }; confirmEl.appendChild(b); };
+  btn(r.scene ? 'Ride' : 'Ride without scene', () => loadUrl(r.path));
+  btn(r.scene ? 'Rebuild scene' : 'Build scene & ride', () => { ridePath = r.path; fetch('build?f=' + encodeURIComponent(r.path), { method: 'POST' }).then(pollBuild); });
+  btn('Back', () => {});
+}
+function pollBuild() {
+  clearTimeout(buildTimer);
+  fetch('build.json').then(r => r.json()).then(b => {
+    buildLog.textContent = b.path ? `${b.path}\n${b.log.join('\n')}` : '';
+    if (b.running) buildTimer = setTimeout(pollBuild, 1000);
+    else if (b.path) { listRides(); if (b.code === 0 && b.path === ridePath) loadUrl(b.path); }
+  }).catch(() => {});
+}
+function showMenu(on) {
+  menu.hidden = !on;
+  if (!on) return;
+  playing = false; playBtn.textContent = 'Play';
+  listRides(); pollBuild();
+}
+function syncLeverUI() { for (const L of LEVERS) if (L.input) { L.input.value = P[L.key]; L.valueEl.textContent = L.options ? '' : P[L.key]; } }
+function saveLevers() { try { localStorage.setItem('levers', JSON.stringify(P)); } catch (e) {} }
+try { Object.assign(P, JSON.parse(localStorage.getItem('levers') || '{}')); } catch (e) {}
+const q = new URLSearchParams(location.search);
+for (const L of LEVERS) if (L.key && q.has(L.key)) P[L.key] = L.options ? q.get(L.key) : +q.get(L.key);
+syncLeverUI();
+document.getElementById('resetBtn').onclick = () => { for (const L of LEVERS) if (L.key) P[L.key] = L.def; syncLeverUI(); saveLevers(); buildRoad(); loadTheme(); };
+
+let theme = null, assets = null;
+async function loadTheme() {
+  const t = (await import(`./theme/${P.theme}.js`)).default;
+  assets = t.sprites ? await loadSprites(t.sprites) : null;
+  theme = t;
+}
+
+// ---------- GPX + scene ----------
+let track = null, road = null, scene = null, ghost = null;
+let playerZ = 0, playing = false, lastTs = 0, rideT = 0, ghostZ = null, lastGradeSent = null, ride = null, gradeNow = 0, gradeClip = false, liveV = 0;
+const CASSETTE = { '11-28': [11, 12, 13, 14, 15, 17, 19, 21, 24, 28], '11-32': [11, 12, 13, 14, 16, 18, 20, 22, 25, 28, 32], '11-34': [11, 13, 15, 17, 19, 21, 23, 25, 27, 30, 34], '12-25': [12, 13, 14, 15, 16, 17, 18, 19, 21, 23, 25] };
+const gearK = () => (P.physRing / P.physCog) / (P.virtRing / P.virtCog);
+function shift(dir) {
+  const cogs = CASSETTE[P.cassette], next = dir > 0 ? [...cogs].reverse().find(c => c < P.virtCog) : cogs.find(c => c > P.virtCog);
+  if (next) { P.virtCog = next; syncLeverUI(); saveLevers(); }
+}
+function modelWatts() {
+  const v = speedNow(), m = P.mass, g = gradeNow / 100;
+  return m * 9.81 * (g / Math.sqrt(1 + g * g) + P.crr) * v + P.cw * v ** 3;
+}
+const askEl = document.getElementById('ask'), askText = document.getElementById('askText'), askBtns = document.getElementById('askBtns');
+function ask(text, choices) {
+  if (!askEl.hidden) return Promise.resolve(null);
+  askEl.hidden = false; askText.textContent = text; askBtns.innerHTML = '';
+  return new Promise(res => { for (const c of choices) { const b = document.createElement('button'); b.textContent = c; b.onclick = () => { askEl.hidden = true; res(c); }; askBtns.appendChild(b); } });
+}
+async function settleRide() {
+  if (!ride) return true;
+  const a = await ask('A ride is in progress.', ['Finish & export', 'Discard', 'Cancel']);
+  if (a === 'Finish & export') await finishRide(); else if (a === 'Discard') endRide();
+  return !ride;
+}
+
+function buildRoad() {
+  if (!track) return;
+  road = buildRoadModel(track, P);
+  if (scene) applyScene(road, scene, P); else placeholderScene(road, P);
+  playerZ = Math.min(playerZ, road.total - 1);
+  drawProfile();
+}
+
+function loadText(text) {
+  let t;
+  endRide();
+  try { t = parseGpx(text); } catch (e) { alert('Could not parse GPX: ' + e.message); return; }
+  track = t; scene = null; ghost = makeGhost(track);
+  try { localStorage.setItem('lastGpx', text); localStorage.removeItem('lastScene'); } catch (e) {}
+  playerZ = 0; rideT = 0; playing = false; playBtn.textContent = 'Play';
+  modeSel.querySelector('[value=gpx]').disabled = !track.t;
+  if (!track.t && modeSel.value === 'gpx') modeSel.value = 'const';
+  document.getElementById('drop').style.display = 'none';
+  buildRoad();
+  buildMinimap();
+}
+function loadSceneText(text) {
+  try { scene = JSON.parse(text); } catch (e) { alert('Could not parse scene JSON'); return; }
+  try { localStorage.setItem('lastScene', text); } catch (e) {}
+  buildRoad();
+}
+const enc = f => f.split('/').map(encodeURIComponent).join('/');
+async function fetchScene(f) {
+  const r = await fetch(enc(f.replace(/\.gpx$/i, '') + '.scene.json')).catch(() => null);
+  if (r && r.ok) loadSceneText(await r.text());
+  return r && r.ok;
+}
+async function loadFiles(files) {
+  const list = [...files], gpx = list.filter(f => /\.gpx$/i.test(f.name)), json = list.filter(f => /\.json$/i.test(f.name));
+  if (gpx.length && !json.length) {
+    const up = await fetch('upload?f=' + encodeURIComponent('clips/' + gpx[0].name), { method: 'POST', body: await gpx[0].text() }).then(r => r.ok && r.json()).catch(() => null);
+    if (up) { const r = await (await fetch('rides.json')).json(); listRides(); return pick(r.find(x => x.path === up.path)); }
+  }
+  if (!await settleRide()) return;
+  for (const f of gpx) loadText(await f.text());
+  for (const f of json) loadSceneText(await f.text());
+  ridePath = null; history.replaceState(null, '', location.pathname); showMenu(false);
+}
+async function loadUrl(f) {
+  if (!await settleRide()) return;
+  loadText(await (await fetch(enc(f))).text());
+  await fetchScene(f);
+  ridePath = f; history.replaceState(null, '', '?f=' + encodeURIComponent(f)); showMenu(false);
+}
+
+// ---------- rendering ----------
+const canvas = document.getElementById('road');
+function resize() { canvas.width = canvas.clientWidth * devicePixelRatio; canvas.height = canvas.clientHeight * devicePixelRatio; }
+addEventListener('resize', resize); resize();
+
+const fmt = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+function drawHud(frame) {
+  const i = frame.base, L = road.L;
+  const grade = (road.ele[i + 1] - road.ele[i]) / L * 100;
+  const radius = Math.abs(road.dTheta[i + 1]) > 1e-6 ? L / Math.abs(road.dTheta[i + 1]) : Infinity;
+  let ghostLine = '';
+  if (ghostZ !== null) {
+    const dGap = playerZ - ghostZ, tGap = ghost.timeAt(playerZ) - rideT;
+    ghostLine = `\nghost ${dGap >= 0 ? '+' : '-'}${Math.abs(dGap).toFixed(0)} m   ${tGap >= 0 ? '+' : '-'}${fmt(Math.abs(tGap))}`;
+  }
+  document.getElementById('hud').textContent =
+    `${track.name}\n` +
+    `dist  ${(playerZ / 1000).toFixed(2)} km / ${(road.total / 1000).toFixed(2)}   time ${fmt(rideT)}\n` +
+    `ele   ${road.ele[i].toFixed(1)} m   grade ${grade.toFixed(1)}%  (drawn ${((road.ry[i + 1] - road.ry[i]) / L * 100).toFixed(0)}%)\n` +
+    `curve ${(road.dTheta[i + 1] * 1000 / L).toFixed(2)} mrad/m  r ${radius === Infinity ? '∞' : radius.toFixed(0) + ' m'}\n` +
+    `hdg   ${((450 - frame.pos.heading * 180 / Math.PI) % 360).toFixed(0)}°` +
+    (road.name ? `\non    ${road.name[i] || '(unnamed)'}  ${road.kind[i]}, ${road.lanes[i]} lane${road.lanes[i] > 1 ? 's' : ''}, ${(road.hw[i] * 2).toFixed(1)} m` : '') + ghostLine +
+    (modeSel.value === 'live' ? `\ngear  ${P.virtRing}×${P.virtCog} (k ${gearK().toFixed(2)})  model ${modelWatts().toFixed(0)} W  trainer ${kickr.live.power} W  ${kickr.live.cadence} rpm${gradeClip ? '  GRADE CLIPPED' : ''}` : '') +
+    (ride ? `\nride  ${fmt((Date.now() - ride.startedAt) / 1000)}  ${playing ? 'recording' : 'paused'}` : '');
+  updateMinimap(frame.pos.x, frame.pos.y, frame.pos.heading);
+}
+
+// ---------- minimap ----------
+const ESRI = 'https://server.arcgisonline.com/ArcGIS/rest/services/', TILES = { streets: 'World_Street_Map', topo: 'World_Topo_Map', satellite: 'World_Imagery', dark: 'Canvas/World_Dark_Gray_Base' };
+const map = window.L && L.map('map', { zoomControl: false, attributionControl: false, zoomSnap: 0, zoomAnimation: false, fadeAnimation: false, dragging: false, doubleClickZoom: false, keyboard: false });
+let tileKey = null, tileLayer = null, mmFitZoom = 0, mmLock = false;
+let mmRoute = map && L.polyline([], { color: '#8ab4f8', weight: 3 }).addTo(map);
+let mmGhost = map && L.circleMarker([0, 0], { radius: 8, color: '#222', weight: 2, fillColor: '#fff', fillOpacity: 0.5, interactive: false }).addTo(map);
+let mmRider = map && L.marker([0, 0], { icon: L.divIcon({ className: '', html: '<div class="mmArrow"></div>', iconSize: [0, 0] }), interactive: false }).addTo(map);
+if (map) map.on('click', () => { mmLock = !mmLock; });
+function latLng(x, y) { const R = 6371000; return [y / R * 180 / Math.PI, x / (R * Math.cos(track.y[0] / R)) * 180 / Math.PI]; }
+function buildMinimap() {
+  if (!map) return;
+  mmRoute.setLatLngs(track.x.map((x, i) => latLng(x, track.y[i])));
+  map.fitBounds(mmRoute.getBounds(), { padding: [10, 10], animate: false });
+  mmFitZoom = map.getZoom();
+}
+function roadXY(z) { const i = Math.min(road.n - 2, Math.floor(z / road.L)), f = z / road.L - i; return [road.x[i] + f * (road.x[i + 1] - road.x[i]), road.y[i] + f * (road.y[i + 1] - road.y[i])]; }
+function updateMinimap(px, py, h) {
+  if (!map || !mmFitZoom) return;
+  if (tileKey !== P.mapTiles) { if (tileLayer) tileLayer.remove(); tileKey = P.mapTiles; tileLayer = L.tileLayer(ESRI + TILES[tileKey] + '/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, maxNativeZoom: tileKey === 'dark' ? 16 : 19 }).addTo(map); }
+  const compass = (450 - h * 180 / Math.PI) % 360, rot = mmLock ? -compass : 0;
+  map.setView(latLng(px, py), Math.max(map.getZoom(), mmFitZoom), { animate: false });
+  document.getElementById('map').style.transform = `rotate(${rot}deg)`;
+  const n = document.getElementById('mmN'); n.style.transform = `rotate(${rot}deg) translateY(-78px)`; n.style.color = mmLock ? '#ff5' : '#aaa';
+  mmRider.setLatLng(latLng(px, py)); mmRider.getElement().firstChild.style.transform = `rotate(${compass}deg)`;
+  if (ghostZ !== null) { const [gx, gy] = roadXY(ghostZ); mmGhost.setLatLng(latLng(gx, gy)); mmGhost.setStyle({ opacity: 1, fillOpacity: 0.5 }); } else mmGhost.setStyle({ opacity: 0, fillOpacity: 0 });
+}
+
+// ---------- profile ----------
+const prof = document.getElementById('profile'), pctx = prof.getContext('2d', { willReadFrequently: true });
+let profImg = null;
+function drawProfile() {
+  prof.width = prof.clientWidth * devicePixelRatio; prof.height = prof.clientHeight * devicePixelRatio;
+  const W = prof.width, H = prof.height;
+  pctx.clearRect(0, 0, W, H);
+  if (!road) return;
+  let lo = Infinity, hi = -Infinity;
+  for (let i = 0; i < road.n; i++) { lo = Math.min(lo, road.ele[i]); hi = Math.max(hi, road.ele[i]); }
+  const span = hi - lo || 1;
+  pctx.fillStyle = '#2f6b3a'; pctx.beginPath(); pctx.moveTo(0, H);
+  for (let i = 0; i < road.n; i++) pctx.lineTo(i / (road.n - 1) * W, H - 4 - (road.ele[i] - lo) / span * (H - 8));
+  pctx.lineTo(W, H); pctx.closePath(); pctx.fill();
+  pctx.fillStyle = '#888'; pctx.font = `${10 * devicePixelRatio}px sans-serif`;
+  pctx.fillText(`${hi.toFixed(0)} m`, 4, 10 * devicePixelRatio); pctx.fillText(`${lo.toFixed(0)} m`, 4, H - 3);
+  profImg = pctx.getImageData(0, 0, W, H);
+}
+function drawProfileMarker() {
+  if (!profImg) return;
+  pctx.putImageData(profImg, 0, 0);
+  if (ghostZ !== null) { const G = ghostZ / road.total * prof.width; pctx.strokeStyle = '#fff'; pctx.lineWidth = 1; pctx.beginPath(); pctx.moveTo(G, 0); pctx.lineTo(G, prof.height); pctx.stroke(); }
+  const X = playerZ / road.total * prof.width;
+  pctx.strokeStyle = '#ff5'; pctx.lineWidth = 2; pctx.beginPath(); pctx.moveTo(X, 0); pctx.lineTo(X, prof.height); pctx.stroke();
+}
+let profDrag = false;
+const seekFromProfile = e => { if (!road) return; const r = prof.getBoundingClientRect(); seek((e.clientX - r.left) / r.width * road.total); };
+prof.addEventListener('mousedown', e => { profDrag = true; seekFromProfile(e); });
+addEventListener('mousemove', e => { if (profDrag) seekFromProfile(e); });
+addEventListener('mouseup', () => profDrag = false);
+addEventListener('resize', drawProfile);
+
+// ---------- transport ----------
+const playBtn = document.getElementById('playBtn'), modeSel = document.getElementById('mode'), speedIn = document.getElementById('speed'), multIn = document.getElementById('mult');
+const scrub = document.getElementById('scrub'), posEl = document.getElementById('pos'), ghostCk = document.getElementById('ghostck'), kstatus = document.getElementById('kstatus'), connectBtn = document.getElementById('connectBtn');
+function setZ(z) { playerZ = Math.max(0, Math.min(road.total - 1, z)); }
+function seek(z) {
+  if (ride) { if (!playing) ask(`Move to ${(z / 1000).toFixed(2)} km?`, ['Move', 'Cancel']).then(a => a === 'Move' && seekNow(z)); return; }
+  seekNow(z);
+}
+function seekNow(z) { setZ(z); rideT = ghost ? ghost.timeAt(playerZ) : rideT; }
+function setPlaying(on) { playing = on; playBtn.textContent = on ? 'Pause' : ride ? 'Resume' : 'Play'; }
+function togglePlay() { if (road) setPlaying(!playing); }
+playBtn.onclick = togglePlay;
+scrub.oninput = () => { if (road && !ride) seek(scrub.value / 1000 * road.total); };
+scrub.onchange = () => { if (road && ride) seek(scrub.value / 1000 * road.total); };
+const rideBtn = document.getElementById('rideBtn'), finishBtn = document.getElementById('finishBtn');
+rideBtn.onclick = () => { if (!road) return; ride = startRide(); rideBtn.hidden = true; finishBtn.hidden = false; setPlaying(true); };
+function endRide() { ride = null; rideBtn.hidden = false; finishBtn.hidden = true; setPlaying(false); }
+async function finishRide() {
+  const posAt = z => { const [x, y] = roadXY(z), [lat, lon] = latLng(x, y); return { lat, lon, ele: road.ele[Math.min(road.n - 1, Math.floor(z / road.L))] }; };
+  const gpx = toGpx(ride, track.name || 'Ride', posAt), d = new Date(ride.startedAt), pad = n => String(n).padStart(2, '0');
+  const name = `rides/${(track.name || 'ride').replace(/[^\w\-]+/g, '_')}-${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}.gpx`;
+  endRide();
+  await fetch('upload?f=' + encodeURIComponent(name), { method: 'POST', body: gpx }).catch(() => {});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([gpx], { type: 'application/gpx+xml' })); a.download = name.slice(6); a.click(); URL.revokeObjectURL(a.href);
+}
+finishBtn.onclick = async () => { setPlaying(false); if (await ask('Finish the ride and export it?', ['Finish', 'Cancel']) === 'Finish') finishRide(); };
+async function rideDone() {
+  setPlaying(false);
+  const a = await ask('Route complete.', ['Restart', 'Join elsewhere', 'Finish']);
+  if (a === 'Restart') { seekNow(0); setPlaying(true); } else if (a === 'Finish') finishRide();
+}
+document.getElementById('loadBtn').onclick = () => document.getElementById('file').click();
+document.getElementById('file').onchange = e => loadFiles(e.target.files);
+document.getElementById('menuBtn').onclick = () => showMenu(menu.hidden);
+document.getElementById('closeBtn').onclick = () => showMenu(false);
+menu.onclick = e => { if (e.target === menu) showMenu(false); };
+canvas.onclick = () => showMenu(true);
+const view = document.getElementById('view');
+view.addEventListener('dragover', e => e.preventDefault());
+view.addEventListener('drop', e => { e.preventDefault(); loadFiles(e.dataTransfer.files); });
+connectBtn.onclick = () => kickr.connect(msg => { kstatus.textContent = msg; connectBtn.textContent = kickr.live.device ? 'Disconnect' : 'Connect trainer'; }, () => { if (modeSel.value === 'live') playing = false; });
+addEventListener('keydown', e => {
+  if (!askEl.hidden) { if (e.code === 'Escape') askBtns.lastChild.click(); return; }
+  if (e.code === 'Escape') { showMenu(menu.hidden); return; }
+  if (e.target.tagName === 'INPUT' && e.target.type !== 'range') return;
+  if (!road || !menu.hidden) return;
+  const step = e.shiftKey ? 100 : 10;
+  if (e.code === 'Space') { e.preventDefault(); togglePlay(); }
+  else if (e.code === 'ArrowRight') { e.preventDefault(); seek(playerZ + step); }
+  else if (e.code === 'ArrowLeft') { e.preventDefault(); seek(playerZ - step); }
+  else if (e.code === 'ArrowUp') { e.preventDefault(); speedIn.value = +speedIn.value + 5; }
+  else if (e.code === 'ArrowDown') { e.preventDefault(); speedIn.value = Math.max(1, +speedIn.value - 5); }
+  else if (e.key === ',') shift(-1);
+  else if (e.key === '.') shift(1);
+  else if (e.code === 'Home') { seek(0); if (!ride) rideT = 0; }
+});
+
+function recordedSpeed(z) {
+  const i = Math.min(road.n - 2, Math.floor(z / road.L)), dt = road.t[i + 1] - road.t[i];
+  return dt > 0 ? road.L / dt : 0;
+}
+function speedNow() {
+  if (modeSel.value === 'live') return liveV;
+  if (modeSel.value === 'gpx' && road.t) return recordedSpeed(playerZ) * +multIn.value;
+  return +speedIn.value / 3.6;
+}
+
+function frame(ts) {
+  const dt = Math.min(0.1, (ts - lastTs) / 1000); lastTs = ts;
+  const vRaw = P.trainerSpeed === 'cadence' ? (kickr.speed() ? kickr.live.cadence / 60 * P.virtRing / P.virtCog * P.wheel / 1000 : 0) : kickr.speed() / gearK();
+  liveV += (vRaw - liveV) * Math.min(1, dt * 2);
+  let actors = [];
+  if (road) {
+    const gi = Math.min(road.n - 2, Math.floor(playerZ / road.L)), gj = Math.min(road.n - 1, gi + Math.round(20 / road.L));
+    gradeNow = Math.round((road.ele[gj] - road.ele[gi]) / ((gj - gi) * road.L) * 200) / 2;
+    if (playing) {
+      rideT += dt;
+      setZ(playerZ + speedNow() * dt);
+      if (ride) record(ride, playerZ, kickr.live);
+      if (playerZ >= road.total - 1) ride ? rideDone() : setPlaying(false);
+      if (modeSel.value === 'live' && kickr.live.device) {
+        const key = `${gradeNow}|${gearK()}|${P.crr}|${P.cw}`;
+        if (key !== lastGradeSent) { gradeClip = Math.abs(kickr.setGrade(gradeNow, P.crr, P.cw, gearK())) === 20; lastGradeSent = key; }
+      }
+    }
+    ghostZ = ghost && ghostCk.checked ? Math.min(road.total - 1, ghost.distAt(rideT)) : null;
+    if (P.riderSprite === 'on') actors.push({ z: playerZ + 3.5, offset: 1.2, kind: 'rider', frame: Math.floor(playerZ / P.pedalStride) });
+    if (ghostZ !== null) actors.push({ z: ghostZ + 3.5, offset: -1.2, kind: 'ghost', frame: Math.floor(ghostZ / P.pedalStride) });
+    scrub.value = playerZ / road.total * 1000;
+    posEl.innerHTML = `<b>${(playerZ / 1000).toFixed(2)}</b> km &nbsp; <b>${(speedNow() * 3.6).toFixed(0)}</b> km/h &nbsp; <b>${fmt(rideT)}</b>`;
+    drawProfileMarker();
+  }
+  if (theme) { const fr = render(canvas, road, playerZ, P, theme, assets, actors); if (road) drawHud(fr); }
+  requestAnimationFrame(frame);
+}
+loadTheme().then(() => requestAnimationFrame(frame));
+
+if (q.has('f')) {
+  loadUrl(q.get('f')).then(() => { if (q.has('z')) seek(+q.get('z')); });
+} else {
+  try {
+    const last = localStorage.getItem('lastGpx'), ls = localStorage.getItem('lastScene');
+    if (last) loadText(last);
+    if (last && ls) loadSceneText(ls);
+  } catch (e) {}
+  if (!track) showMenu(true);
+}
+</script>
+</body>
+</html>
