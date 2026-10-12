@@ -72,6 +72,7 @@
           <button id="resetBtn" title="Reset all levers to defaults">Reset levers</button>
           <button id="closeBtn">Resume</button>
         </div>
+        <div id="strava" style="color:#999;margin-top:12px"></div>
         <div style="color:#999;margin-top:12px"><kbd>esc</kbd> menu &nbsp; <kbd>space</kbd> play/pause &nbsp; <kbd>←</kbd><kbd>→</kbd> step 10 m (shift: 100 m) &nbsp; <kbd>↑</kbd><kbd>↓</kbd> speed &nbsp; <kbd>home</kbd> start</div>
       </div>
     </div></div></div>
@@ -174,7 +175,15 @@ function showMenu(on) {
   menu.hidden = !on;
   if (!on) return;
   setPlaying(false);
-  listRides(); pollBuild();
+  listRides(); pollBuild(); stravaStatus();
+}
+let stravaOk = false;
+function stravaStatus() {
+  fetch('strava.json').then(r => r.json()).then(s => {
+    stravaOk = s.authorized;
+    $('strava').innerHTML = !s.configured ? 'Strava: put client_id and client_secret in strava.json (see README)' : s.authorized ? `Strava: uploads as ${s.athlete || 'you'}` : '<button id="stravaAuth">Authorize Strava</button>';
+    if ($('stravaAuth')) $('stravaAuth').onclick = () => location.href = 'strava/auth';
+  }).catch(() => {});
 }
 function ask(text, choices) {
   if (!askEl.hidden) return Promise.resolve(null);
@@ -285,8 +294,13 @@ async function finishRide() {
   const gpx = toGpx(ride, track.name || 'Ride', posAt), d = new Date(ride.startedAt), pad = n => String(n).padStart(2, '0');
   const name = `${(track.name || 'ride').replace(/[^\w\-]+/g, '_')}-${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}.gpx`;
   endRide();
-  await fetch('upload?f=' + encodeURIComponent('rides/' + name), { method: 'POST', body: gpx }).catch(() => {});
+  const saved = await fetch('upload?f=' + encodeURIComponent('rides/' + name), { method: 'POST', body: gpx }).then(r => r.ok).catch(() => false);
   const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([gpx], { type: 'application/gpx+xml' })); a.download = name; a.click(); URL.revokeObjectURL(a.href);
+  if (saved && stravaOk && await ask('Upload to Strava as a virtual ride?', ['Upload', 'Skip']) === 'Upload') {
+    notice('Uploading to Strava…');
+    const r = await fetch('strava/upload?f=' + encodeURIComponent('rides/' + name), { method: 'POST' }).then(r => r.json()).catch(e => ({ error: e.message }));
+    notice(r.error ? 'Strava upload failed: ' + r.error : `Uploaded: https://www.strava.com/activities/${r.activity}`);
+  }
 }
 async function rideDone() {
   setPlaying(false);

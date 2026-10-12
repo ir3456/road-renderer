@@ -1,4 +1,7 @@
 import glob, http.server, json, os, subprocess, sys, threading, urllib.parse
+import strava
+
+PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8000
 
 build = {'path': None, 'log': [], 'proc': None}
 
@@ -27,6 +30,14 @@ class H(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
         if self.path == '/rides.json':
             return self.reply([{'path': p, 'scene': os.path.exists(p[:-4] + '.scene.json')} for p in rides()])
+        if self.path == '/strava.json':
+            return self.reply(strava.status())
+        if self.path == '/strava/auth' or self.path.startswith('/strava/callback?'):
+            if not strava.status()['configured']: return self.send_error(400, 'strava.json missing (see README)')
+            q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+            if 'code' in q: strava.exchange(q['code'][0])
+            self.send_response(302); self.send_header('Location', '/' if 'code' in q or 'error' in q else strava.auth_url(PORT)); self.end_headers()
+            return
         if self.path == '/build.json':
             p = build['proc']
             return self.reply({'path': build['path'], 'log': build['log'][-12:], 'running': p is not None and p.poll() is None, 'code': p and p.poll()})
@@ -42,10 +53,13 @@ class H(http.server.SimpleHTTPRequestHandler):
             p.terminate()
             build['log'].append('stopped')
             return self.reply({'ok': True})
+        if self.path.startswith('/strava/upload?f=') and path in rides():
+            try: return self.reply({'activity': strava.upload(path)})
+            except Exception as e: return self.reply({'error': str(e)})
         if self.path.startswith('/upload?f=') and path.endswith('.gpx') and os.path.dirname(path) in ('clips', 'rides') and os.path.basename(path) == path.split('/')[1]:
             os.makedirs(os.path.dirname(path), exist_ok=True)
             open(path, 'wb').write(self.rfile.read(int(self.headers['Content-Length'])))
             return self.reply({'path': path})
         self.send_error(400)
 
-http.server.ThreadingHTTPServer(('127.0.0.1', int(sys.argv[1]) if len(sys.argv) > 1 else 8000), H).serve_forever()
+http.server.ThreadingHTTPServer(('127.0.0.1', PORT), H).serve_forever()

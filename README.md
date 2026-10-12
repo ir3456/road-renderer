@@ -30,6 +30,9 @@ Open `http://localhost:8000/editor.html`, optionally with `?f=clips/ride.gpx`, o
 
 Exported files go through the player's `Load file…`, then build a scene for them.
 
+### Strava
+Strava only classifies an activity as a Virtual Ride (map kept, real-world segments excluded) when it arrives through the API, so `Finish ride` can upload through the server. One-time setup: create an API application at strava.com/settings/api with Authorization Callback Domain `localhost`, put its credentials in `strava.json` next to `serve.py` as `{"client_id": "…", "client_secret": "…"}` (gitignored), restart the server, open the menu and press `Authorize Strava`; the tokens are saved in the same file and refreshed automatically. After that, finishing a ride asks whether to upload, and the HUD shows the activity link or the error.
+
 ### Trainer
 The **Trainer** levers model a virtual gear on a single-speed trainer bike: with physical ring/cog and virtual ring/cog, k = physical ratio ÷ virtual ratio and the trainer is sent grade/k, crr/k and cw/k³, so the resistance at the flywheel equals the force a rider in the virtual gear would feel at the speed that gear implies (speed = trainer speed ÷ k, or cadence × virtual gear × wheel). The HUD shows the gear, k, model watts (mass·g·(grade+crr)·v + cw·v³ at the virtual speed) beside the trainer's measured watts, and flags when the Kickr's ±20 % grade limit clips. Flywheel inertia is not scaled, so accelerations feel lighter than the virtual gear would. Grade is the GPX grade 20 m ahead, sent as FTMS simulation parameters over Web Bluetooth (Chrome). Distance, the ride clock, recording and grade updates advance on every trainer notification as well as every frame, so the page keeps progressing and recording while its tab is in the background; without a trainer, a hidden tab pauses.
 
