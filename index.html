@@ -80,6 +80,7 @@
     <canvas id="profile"></canvas>
     <div class="row">
       <button id="menuBtn">Menu</button>
+      <button id="editorBtn" title="Open this ride in the editor">Editor</button>
       <button id="playBtn">Play</button>
       <button id="rideBtn">Start ride</button>
       <button id="finishBtn" hidden>Finish ride</button>
@@ -302,6 +303,7 @@ $('file').onchange = e => loadFiles(e.target.files);
 $('menuBtn').onclick = () => showMenu(menu.hidden);
 $('closeBtn').onclick = () => showMenu(false);
 $('snapBtn').onclick = snapGhost;
+$('editorBtn').onclick = () => location.href = 'editor.html' + (ridePath ? '?f=' + encodeURIComponent(ridePath) : '');
 stopBtn.onclick = () => fetch('stop', { method: 'POST' }).then(pollBuild);
 menu.onclick = e => { if (e.target === menu) showMenu(false); };
 canvas.onclick = () => showMenu(true);

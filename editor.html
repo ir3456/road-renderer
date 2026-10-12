@@ -40,6 +40,7 @@
     <label><input id="route" type="checkbox" checked> Full route</label>
     <label><input id="skip" type="checkbox" checked> Skip stops</label>
     <label><input id="follow" type="checkbox"> Follow</label>
+    <button id="rider" title="Ride this file in the renderer">Rider</button>
     <div class="stats">
       <span>Clock <b id="clock">–</b></span>
       <span>Elapsed <b id="elapsed">–</b></span>
@@ -381,6 +382,7 @@ addEventListener('drop', e => { e.preventDefault(); if (e.dataTransfer.files[0])
 
 sizeProfile();
 const q = new URLSearchParams(location.search);
+$('rider').onclick = () => location.href = 'index.html' + (q.has('f') ? '?f=' + encodeURIComponent(q.get('f')) : '');
 if (q.has('f')) fetch(q.get('f').split('/').map(encodeURIComponent).join('/')).then(r => { if (!r.ok) throw new Error(r.statusText); return r.blob(); }).then(b => loadFile(new File([b], q.get('f').split('/').pop()))).catch(err => status('Load failed: ' + err.message));
 </script>
 </body>
