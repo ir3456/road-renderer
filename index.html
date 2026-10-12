@@ -65,6 +65,7 @@
         <div id="rides"></div>
         <div id="confirm" class="row" hidden></div>
         <div id="buildLog"></div>
+        <button id="stopBtn" hidden>Stop build</button>
         <div class="row" style="margin-top:10px">
           <input type="file" id="file" accept=".gpx,.json" multiple style="display:none">
           <button id="loadBtn">Load file…</button>
@@ -98,7 +99,7 @@
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script type="module">
-import { parseGpx, buildRoad as buildRoadModel, toLatLon } from './road.js';
+import { parseGpx, buildRoad as buildRoadModel, toLatLon, smooth } from './road.js';
 import { render } from './render.js';
 import { loadSprites } from './sprites.js';
 import { placeholderScene, applyScene } from './scene.js';
@@ -110,7 +111,7 @@ import { createMinimap } from './minimap.js';
 import { createProfile } from './profile.js';
 
 const $ = id => document.getElementById(id);
-const canvas = $('road'), menu = $('menu'), ridesEl = $('rides'), confirmEl = $('confirm'), buildLog = $('buildLog');
+const canvas = $('road'), menu = $('menu'), ridesEl = $('rides'), confirmEl = $('confirm'), buildLog = $('buildLog'), stopBtn = $('stopBtn');
 const playBtn = $('playBtn'), rideBtn = $('rideBtn'), finishBtn = $('finishBtn'), modeSel = $('mode'), speedIn = $('speed'), multIn = $('mult');
 const scrub = $('scrub'), posEl = $('pos'), ghostCk = $('ghostck'), kstatus = $('kstatus'), connectBtn = $('connectBtn');
 const askEl = $('ask'), askText = $('askText'), askBtns = $('askBtns');
@@ -143,18 +144,26 @@ function listRides() {
     }
   }).catch(() => {});
 }
-function pick(r) {
+async function pick(r) {
   confirmEl.hidden = false; ridesEl.hidden = true;
-  confirmEl.innerHTML = `<div>${r.path}<span>${r.scene ? 'scene built ✓' : 'no scene data yet'}</span></div>`;
+  confirmEl.innerHTML = `<div>${r.path}<span>${r.scene ? 'scene built ✓' : 'no scene data yet'}</span></div><div id="stats">reading…</div>`;
   const btn = (t, fn) => { const b = document.createElement('button'); b.textContent = t; b.onclick = () => { confirmEl.hidden = true; ridesEl.hidden = false; fn(); }; confirmEl.appendChild(b); };
-  btn(r.scene ? 'Ride' : 'Ride without scene', () => loadUrl(r.path));
-  btn(r.scene ? 'Rebuild scene' : 'Build scene & ride', () => { buildTarget = r.path; fetch('build?f=' + encodeURIComponent(r.path), { method: 'POST' }).then(pollBuild); });
+  btn('Ride', () => loadUrl(r.path));
+  if (r.scene) btn('Ride without scene', () => loadUrl(r.path, false));
+  btn(r.scene ? 'Rebuild scene' : 'Build scene', () => { buildTarget = r.path; fetch('build?f=' + encodeURIComponent(r.path), { method: 'POST' }).then(pollBuild); });
   btn('Back', () => {});
+  try { $('stats').textContent = rideStats(parseGpx(await (await fetch(enc(r.path))).text())); } catch (e) { $('stats').textContent = 'unreadable: ' + e.message; }
+}
+function rideStats(t) {
+  const sm = smooth(t.ele, Math.round(50 * t.ele.length / t.total));
+  let gain = 0; for (let i = 1; i < sm.length; i++) gain += Math.max(0, sm[i] - sm[i - 1]);
+  const dur = t.t ? t.t[t.t.length - 1] - t.t[0] : null;
+  return `${(t.total / 1609.344).toFixed(1)} mi · ${(gain * 3.28084).toFixed(0)} ft gain · ${dur ? `${Math.floor(dur / 3600)}:${String(Math.floor(dur % 3600 / 60)).padStart(2, '0')}` : 'no timestamps'}`;
 }
 function pollBuild() {
   clearTimeout(buildTimer);
   fetch('build.json').then(r => r.json()).then(b => {
-    buildLog.textContent = b.path ? `${b.path}\n${b.log.join('\n')}` : '';
+    buildLog.textContent = b.path ? `${b.path}\n${b.log.join('\n')}` : ''; stopBtn.hidden = !b.running;
     if (b.running) buildTimer = setTimeout(pollBuild, 1000);
     else if (buildTarget) { const t = buildTarget; buildTarget = null; listRides(); if (b.code === 0 && b.path === t) loadUrl(t); }
   }).catch(() => {});
@@ -216,13 +225,13 @@ async function loadFiles(files) {
   for (const f of json) loadSceneText(await f.text());
   ridePath = null; history.replaceState(null, '', location.pathname); showMenu(false);
 }
-async function loadUrl(f) {
+async function loadUrl(f, withScene = true) {
   if (!await settleRide()) return;
   try {
     const r = await fetch(enc(f));
     if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
     if (!loadText(await r.text())) return;
-    const s = await fetch(enc(f.replace(/\.gpx$/i, '') + '.scene.json')).catch(() => null);
+    const s = withScene ? await fetch(enc(f.replace(/\.gpx$/i, '') + '.scene.json')).catch(() => null) : null;
     if (s && s.ok) loadSceneText(await s.text());
   } catch (e) { notice(`Could not load ${f}: ${e.message}`); return; }
   ridePath = f;
@@ -290,6 +299,7 @@ $('loadBtn').onclick = () => $('file').click();
 $('file').onchange = e => loadFiles(e.target.files);
 $('menuBtn').onclick = () => showMenu(menu.hidden);
 $('closeBtn').onclick = () => showMenu(false);
+stopBtn.onclick = () => fetch('stop', { method: 'POST' }).then(pollBuild);
 menu.onclick = e => { if (e.target === menu) showMenu(false); };
 canvas.onclick = () => showMenu(true);
 $('view').addEventListener('dragover', e => e.preventDefault());

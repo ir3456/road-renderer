@@ -38,6 +38,10 @@ class H(http.server.SimpleHTTPRequestHandler):
         if self.path.startswith('/build?f=') and path in rides() and (p is None or p.poll() is not None):
             threading.Thread(target=run_build, args=(path,), daemon=True).start()
             return self.reply({'ok': True})
+        if self.path == '/stop' and p is not None and p.poll() is None:
+            p.terminate()
+            build['log'].append('stopped')
+            return self.reply({'ok': True})
         if self.path.startswith('/upload?f=') and path.endswith('.gpx') and os.path.dirname(path) in ('clips', 'rides') and os.path.basename(path) == path.split('/')[1]:
             os.makedirs(os.path.dirname(path), exist_ok=True)
             open(path, 'wb').write(self.rfile.read(int(self.headers['Content-Length'])))
