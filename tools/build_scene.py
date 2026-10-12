@@ -77,6 +77,14 @@ def to_ll(x, y, cos0): return np.degrees(y / R), np.degrees(x / (R * cos0))
 
 
 # ---------------- OSM ----------------
+def overpass(query):
+    """One Overpass query through the mirror list, then a 5 s pause to stay under the public rate limit."""
+    body = fetch(OVERPASS, urllib.parse.urlencode({'data': f'[out:json][timeout:180];{query}'}))
+    if body is None: raise RuntimeError('Overpass failed')
+    time.sleep(5)
+    return json.loads(body)['elements']
+
+
 def overpass_tiles(xs, ys, cos0):
     lat, lon = to_ll(xs, ys, cos0)
     pad = 80 / R * 57.2958
@@ -87,28 +95,22 @@ def overpass_tiles(xs, ys, cos0):
     elements = {}
     for n, (i, j) in enumerate(sorted(tiles)):
         path = tile_path(OSM_LAYER, i, j, 'json')
-        if os.path.exists(path): data = json.load(open(path))
+        if os.path.exists(path): els = json.load(open(path))['elements']
         else:
             print(f'  osm tile {i}_{j} ({n + 1}/{len(tiles)})', file=sys.stderr)
             bb = f'({i * OSM_DEG:.5f},{j * OSM_DEG:.5f},{(i + 1) * OSM_DEG:.5f},{(j + 1) * OSM_DEG:.5f})'
-            keys = ('natural', 'landuse', 'waterway', 'building', 'barrier', '"power"="line"')
-            q = ('[out:json][timeout:180];(' + ''.join(f'way{bb}[{k}];' for k in keys if k != 'building') + f'way{bb}[highway];node{bb}[highway~"^(traffic_signals|stop)$"];);out geom;'
-                 '(' + ''.join(f'rel{bb}[{k}];' for k in keys) + ');out;')
+            keys = ('natural', 'landuse', 'waterway', 'barrier', '"power"="line"')
             try:
-                data = json.loads(fetch(OVERPASS, urllib.parse.urlencode({'data': q})))
-                time.sleep(5)
-                data['elements'] += json.loads(fetch(OVERPASS, urllib.parse.urlencode({'data': f'[out:json][timeout:180];way{bb}[building];out geom;'})))['elements']
-            except Exception: raise SystemExit(f'Overpass failed for tile {i}_{j}; rerun to resume from the tile cache')
-            rels = [e for e in data['elements'] if e['type'] == 'relation']
-            small = [e['id'] for e in rels if len(e.get('members', [])) <= 40 and 'boundary' not in e.get('tags', {}) and e['tags'].get('natural') not in ('mountain_range', 'ridge', 'valley', 'massif')]
-            data['elements'] = [e for e in data['elements'] if e['type'] != 'relation']
-            if small:
-                time.sleep(5)
-                try: data['elements'] += json.loads(fetch(OVERPASS, urllib.parse.urlencode({'data': f'[out:json][timeout:120];rel(id:{",".join(map(str, small))});out geom;'})))['elements']
-                except Exception: raise SystemExit(f'Overpass failed for tile {i}_{j} relations; rerun to resume from the tile cache')
-            json.dump(data, open(path, 'w'), separators=(',', ':')); fetched[OSM_LAYER] += 1
-            time.sleep(5)
-        for e in data.get('elements', []): elements[(e['type'], e['id'])] = e
+                els = overpass('(' + ''.join(f'way{bb}[{k}];' for k in keys) + f'way{bb}[highway];node{bb}[highway~"^(traffic_signals|stop)$"];);out geom;'
+                               '(' + ''.join(f'rel{bb}[{k}];' for k in keys + ('building',)) + ');out;')
+                els += overpass(f'way{bb}[building];out geom;')
+                rels = [e for e in els if e['type'] == 'relation']
+                small = [e['id'] for e in rels if len(e.get('members', [])) <= 40 and 'boundary' not in e.get('tags', {}) and e['tags'].get('natural') not in ('mountain_range', 'ridge', 'valley', 'massif')]
+                els = [e for e in els if e['type'] != 'relation']
+                if small: els += overpass(f'rel(id:{",".join(map(str, small))});out geom;')
+            except RuntimeError: raise SystemExit(f'Overpass failed for tile {i}_{j}; rerun to resume from the tile cache')
+            json.dump({'elements': els}, open(path, 'w'), separators=(',', ':')); fetched[OSM_LAYER] += 1
+        for e in els: elements[(e['type'], e['id'])] = e
     return list(elements.values())
 
 
@@ -211,13 +213,19 @@ def osm_tags(elements, xs, ys, cos0, lx, ly, rx, ry):
     return [j(s) for s in left], [j(s) for s in right]
 
 
+TRAIL = {'cycleway', 'path', 'footway', 'bridleway', 'pedestrian', 'steps'}
+UNPAVED = {'unpaved', 'gravel', 'dirt', 'ground', 'compacted', 'fine_gravel', 'sand', 'grass', 'earth', 'mud'}
+
 def way_info(tags):
-    info = {'hwy': tags.get('highway', '')}
-    try: info['lanes'] = int(float(tags['lanes']))
-    except (KeyError, ValueError): pass
-    try: info['width'] = float(re.sub(r'[^\d.]', '', tags['width']))
-    except (KeyError, ValueError): pass
-    for k in ('name', 'surface', 'maxspeed'):
+    """Road shape for the renderer, fully resolved so the scene file carries no OSM vocabulary: kind road|trail|dirt, rank, lanes, width (m), name, oneway, bridge, tunnel."""
+    hwy = tags.get('highway', '').replace('_link', '')
+    kind = 'dirt' if hwy == 'track' or tags.get('surface') in UNPAVED else 'trail' if hwy in TRAIL else 'road'
+    try: lanes = int(float(tags['lanes']))
+    except (KeyError, ValueError): lanes = None
+    try: width = float(re.sub(r'[^\d.]', '', tags['width']))
+    except (KeyError, ValueError): width = round(lanes * 3.6, 1) if lanes and kind == 'road' else HWY_WIDTH.get(hwy, 7.2)
+    info = {'hwy': hwy, 'kind': kind, 'rank': HWY_RANK.get(hwy, 0), 'lanes': lanes or (2 if kind == 'road' and hwy != 'service' else 1), 'width': width}
+    for k in ('name', 'maxspeed'):
         if k in tags: info[k] = tags[k]
     if tags.get('oneway') == 'yes': info['oneway'] = 1
     if tags.get('bridge', 'no') != 'no': info['bridge'] = 1
@@ -259,58 +267,91 @@ def match_route(hwys, xs, ys):
     return match
 
 
-def crossings(hwys, match, xs, ys, signals):
-    """Side roads meeting the route: {i, side L/R/LR, ang (deg from route heading, 0-180), hwy, w, name?, sig?}."""
-    n = len(xs); hx, hy = np.gradient(xs), np.gradient(ys); hl = np.hypot(hx, hy); hl[hl == 0] = 1; hx /= hl; hy /= hl
-    route = np.column_stack([xs, ys]); rx0, ry0, rx1, ry1 = xs[:-1], ys[:-1], xs[1:], ys[1:]
-    hits = []
-    def add(i, px, py, dx, dy, sides, e):
-        wi = e['tags']; dot = hx[i] * dx + hy[i] * dy; cr = hx[i] * dy - hy[i] * dx
-        ang = math.degrees(math.atan2(cr, dot)) % 180
-        if sides is None: sides = 'L' if cr > 0 else 'R'
-        info = way_info(wi); w = info.get('width') or (info.get('lanes', 0) * 3.5) or HWY_WIDTH.get(info['hwy'].replace('_link', ''), 6)
-        sig = next((k for k, sx, sy in signals if math.hypot(sx - px, sy - py) < 20 and k == 'traffic_signals'), None) or next((k for k, sx, sy in signals if math.hypot(sx - px, sy - py) < 20), None)
-        h = {'i': int(i), 'side': sides, 'ang': int(round(ang)), 'hwy': info['hwy'], 'w': round(w, 1), 'lvl': level(wi)}
-        if 'name' in info: h['name'] = info['name']
-        if sig: h['sig'] = 'signal' if sig == 'traffic_signals' else 'stop'
-        hits.append(h)
-    mname = np.array([hwys[m][0]['tags'].get('name', '') for m in match])
-    pt = lambda line, cum, s: np.array([np.interp(s, cum, line[:, 0]), np.interp(s, cum, line[:, 1])])
-    for wi, (e, line) in enumerate(hwys):
-        if (match == wi).any() and not (match != wi).any(): continue
-        name = e['tags'].get('name', ''); own = np.flatnonzero((match == wi) | ((mname == name) if name else False))
-        cum = np.concatenate([[0], np.cumsum(np.hypot(*np.diff(line, axis=0).T))])
-        found = set()
-        for end, s1 in ((line[0], 30), (line[-1], cum[-1] - 30)):
-            dd = np.hypot(xs - end[0], ys - end[1]); near = np.flatnonzero(dd <= 15)
-            for r in np.split(near, np.flatnonzero(np.diff(near) > 1) + 1):
-                if not len(r): continue
-                i = int(r[dd[r].argmin()])
-                if (len(own) and np.abs(own - i).min() <= 5) or any(abs(i - f) <= 3 for f in found): continue
-                found.add(i); dv = pt(line, cum, s1) - end; add(i, end[0], end[1], dv[0], dv[1], None, e)
-        pad = 8
-        cand = np.flatnonzero((np.minimum(rx0, rx1) <= line[:, 0].max() + pad) & (np.maximum(rx0, rx1) >= line[:, 0].min() - pad) & (np.minimum(ry0, ry1) <= line[:, 1].max() + pad) & (np.maximum(ry0, ry1) >= line[:, 1].min() - pad))
-        if not len(cand): continue
-        p0 = route[cand]; r = route[cand + 1] - p0; q0 = line[:-1]; sg = line[1:] - q0
-        d = r[:, None, 0] * sg[None, :, 1] - r[:, None, 1] * sg[None, :, 0]; d[d == 0] = 1e-12
-        qp = q0[None, :, :] - p0[:, None, :]
-        t = (qp[:, :, 0] * sg[None, :, 1] - qp[:, :, 1] * sg[None, :, 0]) / d; u = (qp[:, :, 0] * r[:, None, 1] - qp[:, :, 1] * r[:, None, 0]) / d
-        for a, b in zip(*np.nonzero((t >= 0) & (t < 1) & (u >= 0) & (u < 1))):
-            i = int(cand[a])
-            if len(own) and np.abs(own - i).min() <= 5: continue
-            if any(abs(i - f) <= 3 for f in found): continue
-            found.add(i); px, py = p0[a] + t[a, b] * r[a]; sb = cum[b] + u[a, b] * (cum[b + 1] - cum[b])
-            dv = pt(line, cum, sb + 30) - pt(line, cum, sb - 30)
-            add(i, px, py, dv[0], dv[1], 'LR', e)
-    hits.sort(key=lambda h: h['i'])
+def heading(xs, ys):
+    """Unit heading of the route at each sample."""
+    hx, hy = np.gradient(xs), np.gradient(ys); hl = np.hypot(hx, hy); hl[hl == 0] = 1
+    return hx / hl, hy / hl
+
+
+def along(line, cum, s): return np.array([np.interp(s, cum, line[:, 0]), np.interp(s, cum, line[:, 1])])
+
+
+def taken(i, own, found):
+    """True when sample i is on the route's own way (within 5 samples) or already has a hit within 3 samples."""
+    return (len(own) and np.abs(own - i).min() <= 5) or any(abs(i - f) <= 3 for f in found)
+
+
+def tee_hits(line, cum, xs, ys, own, found):
+    """Route samples where either end of the way comes within 15 m, once per pass: (i, px, py, dx, dy, side) with the way's direction over its first or last 30 m."""
+    out = []
+    for end, s1 in ((line[0], 30), (line[-1], cum[-1] - 30)):
+        dd = np.hypot(xs - end[0], ys - end[1]); near = np.flatnonzero(dd <= 15)
+        for run in np.split(near, np.flatnonzero(np.diff(near) > 1) + 1):
+            if not len(run): continue
+            i = int(run[dd[run].argmin()])
+            if taken(i, own, found): continue
+            found.add(i); dv = along(line, cum, s1) - end
+            out.append((i, end[0], end[1], dv[0], dv[1], None))
+    return out
+
+
+def cross_hits(line, cum, route, own, found):
+    """Route segments that the way's segments intersect: (i, px, py, dx, dy, 'LR') with the way's direction over ±30 m around the crossing."""
+    out = []; pad = 8
+    p0 = route[:-1]; r = route[1:] - p0
+    cand = np.flatnonzero((np.minimum(p0[:, 0], p0[:, 0] + r[:, 0]) <= line[:, 0].max() + pad) & (np.maximum(p0[:, 0], p0[:, 0] + r[:, 0]) >= line[:, 0].min() - pad)
+                          & (np.minimum(p0[:, 1], p0[:, 1] + r[:, 1]) <= line[:, 1].max() + pad) & (np.maximum(p0[:, 1], p0[:, 1] + r[:, 1]) >= line[:, 1].min() - pad))
+    if not len(cand): return out
+    p0, r = p0[cand], r[cand]; q0 = line[:-1]; sg = line[1:] - q0
+    denom = r[:, None, 0] * sg[None, :, 1] - r[:, None, 1] * sg[None, :, 0]; denom[denom == 0] = 1e-12
+    qp = q0[None, :, :] - p0[:, None, :]
+    t_route = (qp[:, :, 0] * sg[None, :, 1] - qp[:, :, 1] * sg[None, :, 0]) / denom
+    t_way = (qp[:, :, 0] * r[:, None, 1] - qp[:, :, 1] * r[:, None, 0]) / denom
+    for a, b in zip(*np.nonzero((t_route >= 0) & (t_route < 1) & (t_way >= 0) & (t_way < 1))):
+        i = int(cand[a])
+        if taken(i, own, found): continue
+        found.add(i); px, py = p0[a] + t_route[a, b] * r[a]; sb = cum[b] + t_way[a, b] * (cum[b + 1] - cum[b])
+        dv = along(line, cum, sb + 30) - along(line, cum, sb - 30)
+        out.append((i, px, py, dv[0], dv[1], 'LR'))
+    return out
+
+
+def crossing(i, px, py, dx, dy, side, e, hx, hy, signals):
+    """Hit record for the renderer: angle of the side road against the route heading, resolved shape, nearby signal or stop node."""
+    dot = hx[i] * dx + hy[i] * dy; cr = hx[i] * dy - hy[i] * dx
+    info = way_info(e['tags']); near = [k for k, sx, sy in signals if math.hypot(sx - px, sy - py) < 20]
+    h = {'i': int(i), 'side': side or ('L' if cr > 0 else 'R'), 'ang': int(round(math.degrees(math.atan2(cr, dot)) % 180)),
+         'hwy': info['hwy'], 'kind': info['kind'], 'rank': info['rank'], 'w': info['width'], 'lvl': level(e['tags'])}
+    if 'name' in info: h['name'] = info['name']
+    if near: h['sig'] = 'signal' if 'traffic_signals' in near else 'stop'
+    return h
+
+
+def merge_hits(hits):
+    """Adjacent hits of the same road from opposite sides become one LR crossing."""
     merged = []
-    for h in hits:
+    for h in sorted(hits, key=lambda h: h['i']):
         m = merged[-1] if merged else None
         if m and h['i'] - m['i'] <= 1 and m.get('name') == h.get('name') and m['hwy'] == h['hwy'] and m['side'] != h['side'] and m['lvl'] == h['lvl']:
             m['side'] = 'LR'; m['w'] = max(m['w'], h['w']); m['ang'] = int(round((m['ang'] + h['ang']) / 2)) if abs(m['ang'] - h['ang']) < 90 else m['ang']
             if 'sig' in h: m['sig'] = h['sig']
         else: merged.append(h)
     return merged
+
+
+def crossings(hwys, match, xs, ys, signals):
+    """Side roads meeting the route: {i, side L/R/LR, ang (deg from route heading, 0-180), hwy, kind, rank, w, name?, sig?, lvl}. Ways named like the route's own way are not crossings near where it rides them."""
+    hx, hy = heading(xs, ys); route = np.column_stack([xs, ys])
+    mname = np.array([hwys[m][0]['tags'].get('name', '') for m in match])
+    hits = []
+    for wi, (e, line) in enumerate(hwys):
+        if (match == wi).all(): continue
+        name = e['tags'].get('name', ''); own = np.flatnonzero((match == wi) | ((mname == name) if name else False))
+        cum = np.concatenate([[0], np.cumsum(np.hypot(*np.diff(line, axis=0).T))])
+        found = set()
+        for hit in tee_hits(line, cum, xs, ys, own, found) + cross_hits(line, cum, route, own, found):
+            hits.append(crossing(*hit, e, hx, hy, signals))
+    return merge_hits(hits)
 
 
 # ---------------- DEM ----------------
@@ -410,8 +451,7 @@ def main():
     a = ap.parse_args()
     lat, lon = read_gpx(a.gpx)
     xs, ys, s, cos0 = resample(lat, lon, STEP)
-    hx = np.gradient(xs); hy = np.gradient(ys); hl = np.hypot(hx, hy); hl[hl == 0] = 1
-    nx, ny = -hy / hl, hx / hl
+    hx, hy = heading(xs, ys); nx, ny = -hy, hx
     lx, ly, rx, ry = xs + SIDE * nx, ys + SIDE * ny, xs - SIDE * nx, ys - SIDE * ny
     scene = {'version': 1, 'step': STEP, 'n': len(xs), 'bearing': 'math (0 = east, counterclockwise), degrees'}
     if not a.no_osm:
