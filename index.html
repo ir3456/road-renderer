@@ -27,12 +27,16 @@
   #tabs button.on { background: #8ab4f8; color: #101828; }
   #pages { overflow-y: auto; padding: 10px 16px 14px; }
   .page[hidden] { display: none; }
-  .ride { display: flex; justify-content: space-between; width: 100%; text-align: left; margin: 4px 0; }
+  .ride { display: flex; gap: 4px; margin: 4px 0; }
+  .ride button:first-child { flex: 1; display: flex; justify-content: space-between; text-align: left; }
   .ride span { color: #8ab4f8; }
-  .ride.on { border-color: #8ab4f8; }
+  .ride.on button:first-child { border-color: #8ab4f8; }
+  #favSel { width: 100%; margin-bottom: 8px; }
+  #list details { margin-top: 8px; } #list summary { cursor: pointer; color: #999; }
   #confirm > div { flex-basis: 100%; display: flex; justify-content: space-between; margin-bottom: 6px; }
   #confirm span { color: #8ab4f8; }
   #buildLog { white-space: pre; color: #8ab4f8; font-size: 11px; margin-top: 8px; max-height: 120px; overflow-y: auto; }
+  #recent:empty::after { content: 'no rides yet'; color: #888; }
   #rides:empty::after { content: 'no rides listed (run serve.py)'; color: #888; }
   .lever { display: grid; grid-template-columns: 1fr 58px; align-items: center; gap: 6px; margin: 3px 0; }
   .lever label { grid-column: 1 / span 2; display: flex; justify-content: space-between; color: #bbb; }
@@ -62,7 +66,7 @@
     <div id="ask" hidden><div id="askBox"><p id="askText"></p><div class="row" id="askBtns"></div></div></div>
     <div id="menu" hidden><div id="menuBox"><div id="tabs"></div><div id="pages">
       <div class="page" id="ridePage">
-        <div id="rides"></div>
+        <div id="list"><select id="favSel"></select><div id="recent"></div><details><summary>All rides</summary><div id="rides"></div></details></div>
         <div id="confirm" class="row" hidden></div>
         <div id="buildLog"></div>
         <button id="stopBtn" hidden>Stop build</button>
@@ -84,6 +88,7 @@
       <button id="playBtn">Play</button>
       <button id="rideBtn">Start ride</button>
       <button id="finishBtn" hidden>Finish ride</button>
+      <label class="stat" title="Restart from the top when the route ends instead of asking"><input type="checkbox" id="repeat"> Repeat</label>
       <select id="mode">
         <option value="const">Constant speed</option>
         <option value="gpx" disabled>Recorded speed</option>
@@ -113,7 +118,7 @@ import { createMinimap } from './minimap.js';
 import { createProfile } from './profile.js';
 
 const $ = id => document.getElementById(id);
-const canvas = $('road'), menu = $('menu'), ridesEl = $('rides'), confirmEl = $('confirm'), buildLog = $('buildLog'), stopBtn = $('stopBtn');
+const canvas = $('road'), menu = $('menu'), listEl = $('list'), confirmEl = $('confirm'), buildLog = $('buildLog'), stopBtn = $('stopBtn');
 const playBtn = $('playBtn'), rideBtn = $('rideBtn'), finishBtn = $('finishBtn'), modeSel = $('mode'), speedIn = $('speed'), multIn = $('mult');
 const scrub = $('scrub'), posEl = $('pos'), ghostCk = $('ghostck'), ghostPct = $('ghostPct'), kstatus = $('kstatus'), connectBtn = $('connectBtn');
 const askEl = $('ask'), askText = $('askText'), askBtns = $('askBtns');
@@ -138,23 +143,33 @@ for (const t of pages) {
 pages[0].btn.click();
 $('resetBtn').onclick = () => { resetLevers(); buildRoad(); loadTheme(); };
 let buildTimer = null, buildTarget = null;
+const stored = k => { try { return JSON.parse(localStorage.getItem(k)) || []; } catch (e) { return []; } };
+const store = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
+const isFav = p => stored('favRides').includes(p);
+function toggleFav(p) { const f = stored('favRides'); store('favRides', f.includes(p) ? f.filter(x => x !== p) : [...f, p]); listRides(); }
+function starBtn(p) { const b = document.createElement('button'); b.textContent = isFav(p) ? '★' : '☆'; b.title = 'Favorite'; b.onclick = () => { toggleFav(p); b.textContent = isFav(p) ? '★' : '☆'; }; return b; }
 function listRides() {
   fetch('rides.json').then(r => r.json()).then(list => {
-    ridesEl.innerHTML = '';
-    for (const r of list) {
-      const b = document.createElement('button'); b.className = 'ride' + (r.path === ridePath ? ' on' : '');
-      b.innerHTML = `${r.path}<span>${r.scene ? 'scene' : 'no scene'}</span>`; b.onclick = () => pick(r); ridesEl.appendChild(b);
+    const by = p => list.find(r => r.path === p), favs = stored('favRides').map(by).filter(Boolean);
+    $('favSel').innerHTML = `<option value="">${favs.length ? 'Favorites…' : 'No favorites yet (★ a ride)'}</option>` + favs.map(r => `<option>${r.path}</option>`).join('');
+    $('favSel').onchange = e => { if (e.target.value) pick(by(e.target.value)); e.target.value = ''; };
+    for (const [el, rs] of [[$('recent'), stored('recentRides').map(by).filter(Boolean).slice(0, 5)], [$('rides'), list]]) {
+      el.innerHTML = '';
+      for (const r of rs) {
+        const d = document.createElement('div'), b = document.createElement('button'); d.className = 'ride' + (r.path === ridePath ? ' on' : '');
+        b.innerHTML = `${r.path}<span>${r.scene ? 'scene' : 'no scene'}</span>`; b.onclick = () => pick(r); d.append(b, starBtn(r.path)); el.appendChild(d);
+      }
     }
   }).catch(() => {});
 }
 async function pick(r) {
-  confirmEl.hidden = false; ridesEl.hidden = true;
+  confirmEl.hidden = false; listEl.hidden = true;
   confirmEl.innerHTML = `<div>${r.path}<span>${r.scene ? 'scene built ✓' : 'no scene data yet'}</span></div><div id="stats">reading…</div>`;
-  const btn = (t, fn) => { const b = document.createElement('button'); b.textContent = t; b.onclick = () => { confirmEl.hidden = true; ridesEl.hidden = false; fn(); }; confirmEl.appendChild(b); };
+  const btn = (t, fn) => { const b = document.createElement('button'); b.textContent = t; b.onclick = () => { confirmEl.hidden = true; listEl.hidden = false; fn(); }; confirmEl.appendChild(b); };
   btn('Ride', () => loadUrl(r.path));
   if (r.scene) btn('Ride without scene', () => loadUrl(r.path, false));
   btn(r.scene ? 'Rebuild scene' : 'Build scene', () => { buildTarget = r.path; fetch('build?f=' + encodeURIComponent(r.path), { method: 'POST' }).then(pollBuild); });
-  btn('Back', () => {});
+  btn('Back', () => {}); confirmEl.appendChild(starBtn(r.path));
   try { $('stats').textContent = rideStats(parseGpx(await (await fetch(enc(r.path))).text())); } catch (e) { $('stats').textContent = 'unreadable: ' + e.message; }
 }
 function rideStats(t) {
@@ -168,7 +183,7 @@ function pollBuild() {
   fetch('build.json').then(r => r.json()).then(b => {
     buildLog.textContent = b.path ? `${b.path}\n${b.log.join('\n')}` : ''; stopBtn.hidden = !b.running;
     if (b.running) buildTimer = setTimeout(pollBuild, 1000);
-    else if (buildTarget) { const t = buildTarget; buildTarget = null; listRides(); if (b.code === 0 && b.path === t) loadUrl(t); }
+    else if (buildTarget) { const t = buildTarget; buildTarget = null; listRides(); if (b.path === t) pick({ path: t, scene: b.code === 0 }); }
   }).catch(() => {});
 }
 function showMenu(on) {
@@ -239,6 +254,7 @@ async function loadUrl(f, withScene = true) {
   } catch (e) { notice(`Could not load ${f}: ${e.message}`); return; }
   ridePath = f;
   try { localStorage.setItem('lastRide', f); } catch (e) {}
+  store('recentRides', [f, ...stored('recentRides').filter(x => x !== f)].slice(0, 5));
   history.replaceState(null, '', '?f=' + encodeURIComponent(f)); showMenu(false);
 }
 
@@ -364,7 +380,7 @@ function step() {
   rideT += dt; ghostT += dt * ghostPct.value / 100;
   setZ(playerZ + speedNow() * dt);
   if (ride) record(ride, playerZ, kickr.live);
-  if (playerZ >= road.total - 1) ride ? rideDone() : setPlaying(false);
+  if (playerZ >= road.total - 1) $('repeat').checked ? seekNow(0) : ride ? rideDone() : setPlaying(false);
   if (modeSel.value === 'live' && kickr.live.device) {
     const key = `${gradeNow}|${gearK()}|${P.crr}|${P.cw}`;
     if (key !== lastGradeSent) { gradeClip = Math.abs(kickr.setGrade(gradeNow, P.crr, P.cw, gearK())) === 20; lastGradeSent = key; }
