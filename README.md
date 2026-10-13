@@ -41,7 +41,7 @@ The **Trainer** levers model a virtual gear on a single-speed trainer bike: with
 | `project.js` | Camera + levers → per-frame contract (screen points, visible quads, crest clip, blended skyline, projected actors). The contract is documented at the top of the file; themes consume it and nothing else. |
 | `render.js` | Compositor: draws the theme into an offscreen framebuffer at the chosen resolution, blits up with nearest-neighbor. |
 | `theme/<name>.js` | A palette passed to `theme()` from `theme/road_draw.js`, which owns the drawing (background, road, junctions, sprites) and the prop kind → sprite table. `arcade` and `flat` exist. |
-| `sprites.js`, `sprites/<set>/` | PNG per sprite + `manifest.json` (anchor pixel, height in meters, `faceRoad` to mirror on the right side). A sheet adds `frameW, frameH, row, frames`; the caller picks the frame. `make_placeholders.py` regenerates the placeholder set; `sprites/bike/` holds the rider sheet. |
+| `sprites.js`, `sprites/<set>/` | PNG per sprite + `manifest.json` (anchor pixel, height in meters, `faceRoad` to mirror on the right side). A sheet adds `frameW, frameH, row, frames`; the caller picks the frame. `make_placeholders.py` regenerates the placeholder set; `sprites/bike/` holds the rider sheet; `sprites/art/` is loaded last, so a sprite named there replaces the placeholder of the same name and falls back to it while the PNG is missing. |
 | `ghost.js` | Recorded ride timing: distance at elapsed time, time at distance. |
 | `kickr.js` | FTMS smart trainer over Web Bluetooth: speed and power in, grade out. |
 | `ride.js` | Ride recording and GPX export. |

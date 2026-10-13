@@ -189,7 +189,7 @@ export function drawSprites(ctx, frame, P, assets, kinds, pal) {
   for (; ai < actors.length; ai++) blitActor(ctx, actors[ai], sprite(actors[ai].kind, 0));
 }
 
-export const SPRITES = ['sprites/placeholder/manifest.json', 'sprites/bike/manifest.json'];
+export const SPRITES = ['sprites/placeholder/manifest.json', 'sprites/bike/manifest.json', 'sprites/art/manifest.json'];
 export const KINDS = { pine: ['pine'], tree: ['tree'], bush: ['bush'], rock: ['rock'], sign: ['sign'], building: ['building'], cliff: ['cliff'], cabin: ['cabin'], rider: ['bikeback'], ghost: ['bikeback'], bankL: ['bankL'], bankR: ['bankR'], rocktile: ['rocktile'], stopsign: ['stopsign'], signal: ['signal'] };
 
 /** A theme is a palette plus the sprite manifests and the prop kind → sprite name table; the drawing is shared. */
