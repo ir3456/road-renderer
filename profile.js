@@ -15,7 +15,7 @@ export function createProfile(canvas, onSeek) {
     for (let i = 0; i < road.n; i++) ctx.lineTo(i / (road.n - 1) * W, H - 4 - (road.ele[i] - lo) / span * (H - 8));
     ctx.lineTo(W, H); ctx.closePath(); ctx.fill();
     ctx.fillStyle = '#888'; ctx.font = `${10 * devicePixelRatio}px sans-serif`;
-    ctx.fillText(`${hi.toFixed(0)} m`, 4, 10 * devicePixelRatio); ctx.fillText(`${lo.toFixed(0)} m`, 4, H - 3);
+    ctx.fillText(`${(hi * 3.28084).toFixed(0)} ft`, 4, 10 * devicePixelRatio); ctx.fillText(`${(lo * 3.28084).toFixed(0)} ft`, 4, H - 3);
     img = ctx.getImageData(0, 0, W, H);
   }
   function marker(playerZ, ghostZ) {

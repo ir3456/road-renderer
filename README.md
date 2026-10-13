@@ -9,12 +9,12 @@ node tools/smoke.mjs             # builds every GPX through the pure modules and
 ```
 `serve.py` is `http.server` bound to localhost with caching off, so edits show on a plain reload. ES modules do not load from `file://`. It also lists rides (`rides.json`), runs the scene builder (`POST /build?f=`, progress from `build.json`) and accepts uploads into `clips/` and `rides/` (`POST /upload?f=`).
 
-Both pages take GPX files with or without timestamps. A recorded activity (Strava, Sauce, a head unit) has times and gives you recorded speed and a ghost; a planned route (`trkpt` or `rtept`, no times) rides at constant or trainer speed only, and the editor plays it back at 25 km/h.
+Both pages take GPX files with or without timestamps. A recorded activity (Strava, Sauce, a head unit) has times and gives you recorded speed and a ghost; a planned route (`trkpt` or `rtept`, no times) rides at constant or trainer speed only, and the editor plays it back at 15 mph.
 
 ### Player (`index.html`)
 Press Esc or click the road for the menu. The Ride tab lists every `.gpx` in the folder and `clips/`; picking one shows whether its `.scene.json` exists plus miles, elevation gain and duration, and offers Ride, Ride without scene, and Build scene (runs `tools/build_scene.py` through the server; `Stop build` kills it) or Rebuild. The other tabs hold the levers, which persist in local storage along with the last ride's path; `Reset levers` restores defaults. `Load file…` with a lone GPX copies it into `clips/` and goes through the same confirm; drag-drop or picking a GPX together with its scene JSON loads them directly.
 
-Transport bar: Play, speed source (constant km/h, recorded × multiplier, live trainer), Ghost toggle with its speed percent, Snap ghost, Connect trainer, scrub. Keys: `space` play, `←`/`→` 10 m (shift 100 m), `↑`/`↓` speed, `home` start, `g` snap ghost, `,`/`.` shift the virtual gear.
+Transport bar: Play, speed source (constant mph, recorded × multiplier, live trainer), Ghost toggle with its speed percent, Snap ghost, Connect trainer, scrub. Keys: `space` play, `←`/`→` 50 ft (shift 500 ft), `↑`/`↓` speed 5 mph, `home` start, `g` snap ghost, `,`/`.` shift the virtual gear.
 
 `Start ride` switches the speed source to Live trainer and locks it until the ride ends, recording one sample per second of position, power and cadence. While riding, seeking only works when paused and asks for confirmation; reaching the end pauses with Restart / Join elsewhere / Finish; `Finish ride` writes a Strava-ready GPX (`VirtualRide`, power and cadence extensions) to `rides/` through the server and downloads it.
 

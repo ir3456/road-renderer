@@ -70,7 +70,7 @@
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script>
-const GAP = 15, ROUTE_SPEED = 25 / 3.6;
+const GAP = 15, ROUTE_SPEED = 15 * 1609.344 / 3600;
 const TZ = 'America/Denver';
 const $ = id => document.getElementById(id);
 const fmt = s => { s = Math.round(s); const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), x = s % 60; return (h ? h + ':' : '') + String(m).padStart(h ? 2 : 1, '0') + ':' + String(x).padStart(2, '0'); };
@@ -277,7 +277,7 @@ $('unstop').onclick = () => {
     a = e0;
   }
   loadRide(ride);
-  status(count ? `Removed ${count} stop${count > 1 ? 's' : ''}, ${fmt(saved)} and ${Math.round(drift)} m of GPS drift` : 'No stops found');
+  status(count ? `Removed ${count} stop${count > 1 ? 's' : ''}, ${fmt(saved)} and ${ft(drift)} ft of GPS drift` : 'No stops found');
 };
 $('fixdrift').onclick = () => {
   if (!ride) return;
