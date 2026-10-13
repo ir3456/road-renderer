@@ -388,7 +388,7 @@ def water_crossings(elements, cos0, xs, ys):
     return out
 
 
-WATER_REACH = 150
+WATER_REACH = 50
 is_water_poly = lambda tags: tags.get('natural') == 'water' or tags.get('landuse') in ('reservoir', 'basin')
 
 
