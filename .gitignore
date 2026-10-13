@@ -4,3 +4,6 @@ strava_exports/
 .venv/
 __pycache__/
 .DS_Store
+*.gpx
+*.scene.json
+clips/
