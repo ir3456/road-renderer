@@ -250,7 +250,7 @@ function shift(dir) {
   if (next) { P.virtCog = next; syncLeverUI(); saveLevers(); }
 }
 function modelWatts() {
-  const v = speedNow(), m = P.mass, g = gradeNow / 100;
+  const v = speedNow(), m = P.mass * 0.4536, g = gradeNow / 100;
   return m * 9.81 * (g / Math.sqrt(1 + g * g) + P.crr) * v + P.cw * v ** 3;
 }
 function recordedSpeed(z) {
