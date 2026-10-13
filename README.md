@@ -54,7 +54,7 @@ The **Trainer** levers model a virtual gear on a single-speed trainer bike: with
 | `tools/clip_gpx.py` | Cuts a distance range out of a GPX: `python3 tools/clip_gpx.py ride.gpx 26.0 27.2 clips/name.gpx "Name"`. |
 | `tools/smoke.mjs` | Node smoke test over every GPX and scene in the repo. |
 
-Clips in `clips/` are short cuts from recorded rides with timestamps and scene sidecars. Samples: `sample_big_cottonwood.gpx` (SR-190 mouth to Brighton, OSRM geometry + USGS 3DEP elevations, S-curve at ~6.7 km, with scene sidecar), `sample_route.gpx` (Strava route, no timestamps), `sample_recorded.gpx` (recorded activity, timestamps). Keep clips short while iterating on scene data; Overpass throttles long routes.
+Rides, clips and scene sidecars stay local: `*.gpx`, `*.scene.json` and `clips/` are gitignored, so the repo holds only code. Put any GPX in the folder or `clips/` and it appears in the ride list. Keep clips short while iterating on scene data; Overpass throttles long routes.
 
 ## Pipeline
 1. Parse `trkpt` / `rtept` lat/lon/ele/time, project to local meters.
