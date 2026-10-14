@@ -49,7 +49,7 @@ export const LEVERS = [
   { key: 'trainerSpeed', label: 'Route speed from', options: { trainer: 'Trainer speed ÷ gear factor', cadence: 'Cadence × virtual gear' }, def: 'trainer' },
   { key: 'wheel',        label: 'Wheel circumference (mm)',   min: 1800, max: 2400, step: 5, def: 2105 },
   { key: 'crr',          label: 'Rolling resistance crr',    min: 0.002, max: 0.012, step: 0.0005, def: 0.004 },
-  { key: 'cw',           label: 'Wind resistance cw (kg/m)', min: 0.1, max: 0.6, step: 0.01, def: 0.2 },
+  { key: 'cda',          label: 'Wind resistance ρ·CdA (kg/m)', min: 0.2, max: 1.2, step: 0.01, def: 0.4 },
 ];
 
 export const P = {};

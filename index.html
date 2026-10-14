@@ -371,8 +371,8 @@ function step() {
   if (ride) record(ride, playerZ, kickr.live);
   if (playerZ >= road.total - 1) { laps++; $('repeat').checked ? seekNow(0) : ride ? rideDone() : setPlaying(false); }
   if (modeSel.value === 'live' && kickr.live.device) {
-    const key = `${gradeNow}|${gearK()}|${P.crr}|${P.cw}`;
-    if (key !== lastGradeSent) { kickr.setGrade(gradeNow, P.crr, P.cw, gearK()); lastGradeSent = key; }
+    const key = `${gradeNow}|${gearK()}|${P.crr}|${P.cda}`;
+    if (key !== lastGradeSent) { kickr.setGrade(gradeNow, P.crr, P.cda, gearK()); lastGradeSent = key; }
   }
 }
 kickr.onData(step);
