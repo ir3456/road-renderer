@@ -128,8 +128,8 @@ const fmt = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2,
 // ---------- state ----------
 let track = null, road = null, scene = null, ghost = null, ridePath = null;
 let theme = null, assets = null;
-let playerZ = 0, playing = false, rideT = 0, ghostT = 0, ghostZ = null;
-let ride = null, gradeNow = 0, gradeClip = false, lastGradeSent = null, liveV = 0;
+let playerZ = 0, playing = false, rideT = 0, ghostT = 0, ghostZ = null, clock = 0, ridden = 0, laps = 0;
+let ride = null, gradeNow = 0, lastGradeSent = null, liveV = 0;
 const minimap = createMinimap($('map'), $('mmN'));
 const profile = createProfile($('profile'), seek);
 
@@ -216,7 +216,7 @@ function loadText(text) {
   try { t = parseGpx(text); } catch (e) { notice('Could not parse GPX: ' + e.message); return false; }
   endRide();
   track = t; scene = null; ghost = makeGhost(track);
-  playerZ = 0; rideT = ghostT = 0; setPlaying(false);
+  playerZ = 0; rideT = ghostT = clock = ridden = laps = 0; setPlaying(false);
   modeSel.querySelector('[value=gpx]').disabled = !track.t;
   if (!track.t && modeSel.value === 'gpx') modeSel.value = 'const';
   notice(null);
@@ -263,10 +263,6 @@ function shift(dir) {
   const cogs = CASSETTE[P.cassette], next = dir > 0 ? [...cogs].reverse().find(c => c < P.virtCog) : cogs.find(c => c > P.virtCog);
   if (next) { P.virtCog = next; syncLeverUI(); saveLevers(); }
 }
-function modelWatts() {
-  const v = speedNow(), m = P.mass * 0.4536, g = gradeNow / 100;
-  return m * 9.81 * (g / Math.sqrt(1 + g * g) + P.crr) * v + P.cw * v ** 3;
-}
 function recordedSpeed(z) {
   const i = Math.min(road.n - 2, Math.floor(z / road.L)), dt = road.t[i + 1] - road.t[i];
   return dt > 0 ? road.L / dt : 0;
@@ -311,7 +307,7 @@ async function rideDone() {
 playBtn.onclick = togglePlay;
 scrub.oninput = () => { if (road && !ride) seek(scrub.value / 1000 * road.total); };
 scrub.onchange = () => { if (road && ride) seek(scrub.value / 1000 * road.total); };
-rideBtn.onclick = () => { if (!road) return; ride = startRide(); rideBtn.hidden = true; finishBtn.hidden = false; modeSel.value = 'live'; modeSel.disabled = true; setPlaying(true); };
+rideBtn.onclick = () => { if (!road) return; ride = startRide(); clock = ridden = laps = 0; rideBtn.hidden = true; finishBtn.hidden = false; modeSel.value = 'live'; modeSel.disabled = true; setPlaying(true); };
 finishBtn.onclick = async () => { setPlaying(false); if (await ask('Finish the ride and export it?', ['Finish', 'Cancel']) === 'Finish') finishRide(); };
 $('loadBtn').onclick = () => $('file').click();
 $('file').onchange = e => loadFiles(e.target.files);
@@ -346,24 +342,19 @@ addEventListener('keydown', e => {
 function resize() { canvas.width = canvas.clientWidth * devicePixelRatio; canvas.height = canvas.clientHeight * devicePixelRatio; }
 addEventListener('resize', resize); resize();
 function drawHud(frame) {
-  const i = frame.base, L = road.L;
-  const grade = (road.ele[i + 1] - road.ele[i]) / L * 100;
-  const radius = Math.abs(road.dTheta[i + 1]) > 1e-6 ? L / Math.abs(road.dTheta[i + 1]) : Infinity;
+  const i = frame.base, grade = (road.ele[i + 1] - road.ele[i]) / road.L * 100, mph = v => (v / MPH).toFixed(0) + ' mph';
+  const dir = 'N NNE NE ENE E ESE SE SSE S SSW SW WSW W WNW NW NNW'.split(' ')[Math.round((450 - frame.pos.heading * 180 / Math.PI) % 360 / 22.5) % 16];
   let ghostLine = '';
   if (ghostZ !== null) {
     const dGap = playerZ - ghostZ, tGap = (ghost.timeAt(playerZ) - ghostT) / (ghostPct.value / 100);
-    ghostLine = `\nghost ${dGap >= 0 ? '+' : '-'}${(Math.abs(dGap) * FT).toFixed(0)} ft   ${tGap >= 0 ? '+' : '-'}${fmt(Math.abs(tGap))}`;
+    ghostLine = `\nGhost data:     ${dGap >= 0 ? '+' : '-'}${(Math.abs(dGap) * FT).toFixed(0)} ft   ${tGap >= 0 ? '+' : '-'}${fmt(Math.abs(tGap))}`;
   }
   $('hud').textContent =
     `${track.name}\n` +
-    `dist  ${(playerZ / MI).toFixed(2)} mi / ${(road.total / MI).toFixed(2)}   time ${fmt(rideT)}\n` +
-    `ele   ${(road.ele[i] * FT).toFixed(0)} ft   grade ${grade.toFixed(1)}%  (drawn ${((road.ry[i + 1] - road.ry[i]) / L * 100).toFixed(0)}%)\n` +
-    `curve ${(road.dTheta[i + 1] * 1000 / L).toFixed(2)} mrad/m  r ${radius === Infinity ? '∞' : (radius * FT).toFixed(0) + ' ft'}\n` +
-    `hdg   ${((450 - frame.pos.heading * 180 / Math.PI) % 360).toFixed(0)}°` +
-    (road.name ? `\non    ${road.name[i] || '(unnamed)'}  ${road.kind[i]}, ${road.lanes[i]} lane${road.lanes[i] > 1 ? 's' : ''}, ${(road.hw[i] * 2 * FT).toFixed(0)} ft` : '') + ghostLine +
-    (modeSel.value === 'live' ? `\ngear  ${P.virtRing}×${P.virtCog} (k ${gearK().toFixed(2)})  model ${modelWatts().toFixed(0)} W  trainer ${kickr.live.power} W  ${kickr.live.cadence} rpm${gradeClip ? '  GRADE CLIPPED' : ''}` : '') +
-    (ride ? `\nride  ${fmt((Date.now() - ride.startedAt) / 1000)}  ${playing ? 'recording' : 'paused'}` : '');
-  minimap.update(frame.pos.x, frame.pos.y, frame.pos.heading, ghostZ !== null ? roadXY(ghostZ) : null, P.mapTiles);
+    `Current ride:   ${fmt(clock)}   ${(ridden / MI).toFixed(2)} mi   ${mph(clock ? ridden / clock : 0)} avg\n` +
+    `Current data:   ${mph(speedNow())}   ${kickr.live.power} W   ${kickr.live.cadence} rpm\n` +
+    `Map data:       ${dir}   ${(road.ele[i] * FT).toFixed(0)} ft   ${grade.toFixed(1)}%` + ghostLine +
+    `\nGPX file data:  ${(playerZ / MI).toFixed(2)} / ${(road.total / MI).toFixed(2)} mi   ${(playerZ / road.total * 100).toFixed(0)}%   ${laps} lap${laps === 1 ? '' : 's'}`;
 }
 let lastStep = performance.now();
 /** Advances the simulation by the wall-clock time since the last call. Runs from every frame and from every trainer notification, so a hidden tab still makes progress while pedaling. */
@@ -375,13 +366,13 @@ function step() {
   const gi = Math.min(road.n - 2, Math.floor(playerZ / road.L)), gj = Math.min(road.n - 1, gi + Math.round(20 / road.L));
   gradeNow = Math.round((road.ele[gj] - road.ele[gi]) / ((gj - gi) * road.L) * 200) / 2;
   if (!playing) return;
-  rideT += dt; ghostT += dt * ghostPct.value / 100;
+  rideT += dt; ghostT += dt * ghostPct.value / 100; clock += dt; ridden += speedNow() * dt;
   setZ(playerZ + speedNow() * dt);
   if (ride) record(ride, playerZ, kickr.live);
-  if (playerZ >= road.total - 1) $('repeat').checked ? seekNow(0) : ride ? rideDone() : setPlaying(false);
+  if (playerZ >= road.total - 1) { laps++; $('repeat').checked ? seekNow(0) : ride ? rideDone() : setPlaying(false); }
   if (modeSel.value === 'live' && kickr.live.device) {
     const key = `${gradeNow}|${gearK()}|${P.crr}|${P.cw}`;
-    if (key !== lastGradeSent) { gradeClip = Math.abs(kickr.setGrade(gradeNow, P.crr, P.cw, gearK())) === 20; lastGradeSent = key; }
+    if (key !== lastGradeSent) { kickr.setGrade(gradeNow, P.crr, P.cw, gearK()); lastGradeSent = key; }
   }
 }
 kickr.onData(step);
