@@ -122,10 +122,10 @@ function heightAt(h, D, d) {
   return prev;
 }
 
-function shoulders(ctx, a, b, side, pal, D, from = 0) {
+function shoulders(ctx, a, b, side, pal, D, from = 0, fromB = from) {
   ctx.lineWidth = 1;
   const ta = side < 0 ? a.tl : a.tr, tb = side < 0 ? b.tl : b.tr;
-  let ax = a.sx + side * Math.max(a.sw, from * a.ppm), ay = a.sy, bx = b.sx + side * Math.max(b.sw, from * b.ppm), by = b.sy;
+  let ax = a.sx + side * Math.max(a.sw, from * a.ppm), ay = a.sy, bx = b.sx + side * Math.max(b.sw, fromB * b.ppm), by = b.sy;
   for (let j = 0; j < ta.length; j++) {
     if (D[j] <= from) continue;
     const [x1, y1] = ta[j], [x2, y2] = tb[j], rise = (ay - y1) / Math.max(1, Math.abs(x1 - ax));
@@ -172,9 +172,9 @@ export function drawSprites(ctx, frame, P, assets, kinds, pal) {
       ctx.save(); ctx.beginPath(); ctx.rect(0, 0, 1e5, clip[k]); ctx.clip();
       for (const side of [-1, 1]) {
         if (junc && junc[base + k] & (side < 0 ? 1 : 2)) continue;
-        const wv = water && water[base + k]?.[side < 0 ? 0 : 1];
+        const wv = water && water[base + k]?.[side < 0 ? 0 : 1], wq = water && water[base + k + 1]?.[side < 0 ? 0 : 1];
         if (wv && mode !== 'shoulders') continue;
-        if (mode === 'shoulders') shoulders(ctx, p, q, side, pal, profD, wv ? wv[1] : 0);
+        if (mode === 'shoulders') shoulders(ctx, p, q, side, pal, profD, wv ? wv[1] : 0, wq ? wq[1] : 0);
         else if (mode === 'wall') wall(ctx, p, q, side, P, pal, pat, base + k, h[side < 0 ? 0 : 1], prof[base + k + 1][side < 0 ? 0 : 1], profD);
         else banks(ctx, p, side, P, sprite(side < 0 ? 'bankL' : 'bankR', 0), ppm, clip[k], h[side < 0 ? 0 : 1], profD, base + k);
       }
@@ -184,7 +184,8 @@ export function drawSprites(ctx, frame, P, assets, kinds, pal) {
     for (const sp of list) {
       const s = sp.text ? signSprite(sp.text) : sprite(sp.kind, base + k);
       if (!s) continue;
-      const lift = mode !== 'off' && h ? heightAt(h[sp.offset < 0 ? 0 : 1], profD, p.hw + Math.abs(sp.offset)) * P.terrainScale * ppm : 0;
+      const d = p.hw + Math.abs(sp.offset), wv = water && water[base + k]?.[sp.offset < 0 ? 0 : 1];
+      const lift = mode !== 'off' && h && !(wv && d <= wv[1]) ? heightAt(h[sp.offset < 0 ? 0 : 1], profD, d) * P.terrainScale * ppm : 0;
       blit(ctx, s, p.sx + Math.sign(sp.offset) * p.sw + sp.offset * ppm, p.sy - lift, ppm, clip[k], 0, s.flip && sp.offset > 0);
     }
   }
