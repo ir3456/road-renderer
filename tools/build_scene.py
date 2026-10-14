@@ -224,7 +224,8 @@ def way_info(tags):
     try: lanes = int(float(tags['lanes']))
     except (KeyError, ValueError): lanes = None
     try: width = float(re.sub(r'[^\d.]', '', tags['width']))
-    except (KeyError, ValueError): width = round(lanes * 3.6, 1) if lanes and kind == 'road' else HWY_WIDTH.get(hwy, 7.2)
+    except (KeyError, ValueError): width = 0
+    if not 1 <= width <= 30: width = round(lanes * 3.6, 1) if lanes and kind == 'road' else HWY_WIDTH.get(hwy, 7.2)
     info = {'hwy': hwy, 'kind': kind, 'rank': HWY_RANK.get(hwy, 0), 'lanes': lanes or (2 if kind == 'road' and hwy != 'service' else 1), 'width': width}
     for k in ('name', 'maxspeed'):
         if k in tags: info[k] = tags[k]
