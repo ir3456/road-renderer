@@ -354,7 +354,7 @@ function drawHud(frame) {
     `Current ride:   ${fmt(clock)}   ${(ridden / MI).toFixed(2)} mi   ${mph(clock ? ridden / clock : 0)} avg\n` +
     `Current data:   ${mph(speedNow())}   ${kickr.live.power} W   ${kickr.live.cadence} rpm\n` +
     `Map data:       ${dir}   ${(road.ele[i] * FT).toFixed(0)} ft   ${grade.toFixed(1)}%` + ghostLine +
-    `\nGPX file data:  ${(playerZ / MI).toFixed(2)} / ${(road.total / MI).toFixed(2)} mi   ${(playerZ / road.total * 100).toFixed(0)}%   ${laps} lap${laps === 1 ? '' : 's'}`;
+    `\nGPX file data:  ${(playerZ / MI).toFixed(2)} / ${(road.total / MI).toFixed(2)} mi   ${(playerZ / road.total * 100).toFixed(0)}%   lap ${laps + 1}`;
 }
 let lastStep = performance.now();
 /** Advances the simulation by the wall-clock time since the last call. Runs from every frame and from every trainer notification, so a hidden tab still makes progress while pedaling. */
