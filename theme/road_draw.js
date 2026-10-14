@@ -122,11 +122,12 @@ function heightAt(h, D, d) {
   return prev;
 }
 
-function shoulders(ctx, a, b, side, pal) {
+function shoulders(ctx, a, b, side, pal, D, from = 0) {
   ctx.lineWidth = 1;
   const ta = side < 0 ? a.tl : a.tr, tb = side < 0 ? b.tl : b.tr;
-  let ax = a.sx + side * a.sw, ay = a.sy, bx = b.sx + side * b.sw, by = b.sy;
+  let ax = a.sx + side * Math.max(a.sw, from * a.ppm), ay = a.sy, bx = b.sx + side * Math.max(b.sw, from * b.ppm), by = b.sy;
   for (let j = 0; j < ta.length; j++) {
+    if (D[j] <= from) continue;
     const [x1, y1] = ta[j], [x2, y2] = tb[j], rise = (ay - y1) / Math.max(1, Math.abs(x1 - ax));
     if (Math.abs(rise) < 0.03) { ax = x1; ay = y1; bx = x2; by = y2; continue; }
     ctx.fillStyle = ctx.strokeStyle = `rgb(${(rise < 0.15 ? pal.terrain.grass : rise < 0.6 ? pal.terrain.scrub : pal.terrain.rock)[0]})`;
@@ -171,8 +172,9 @@ export function drawSprites(ctx, frame, P, assets, kinds, pal) {
       ctx.save(); ctx.beginPath(); ctx.rect(0, 0, 1e5, clip[k]); ctx.clip();
       for (const side of [-1, 1]) {
         if (junc && junc[base + k] & (side < 0 ? 1 : 2)) continue;
-        if (water && water[base + k]?.[side < 0 ? 0 : 1]) continue;
-        if (mode === 'shoulders') shoulders(ctx, p, q, side, pal);
+        const wv = water && water[base + k]?.[side < 0 ? 0 : 1];
+        if (wv && mode !== 'shoulders') continue;
+        if (mode === 'shoulders') shoulders(ctx, p, q, side, pal, profD, wv ? wv[1] : 0);
         else if (mode === 'wall') wall(ctx, p, q, side, P, pal, pat, base + k, h[side < 0 ? 0 : 1], prof[base + k + 1][side < 0 ? 0 : 1], profD);
         else banks(ctx, p, side, P, sprite(side < 0 ? 'bankL' : 'bankR', 0), ppm, clip[k], h[side < 0 ? 0 : 1], profD, base + k);
       }
