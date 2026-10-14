@@ -188,9 +188,7 @@ function pollBuild() {
 }
 function showMenu(on) {
   menu.hidden = !on;
-  if (!on) return;
-  setPlaying(false);
-  listRides(); pollBuild();
+  if (on) { listRides(); pollBuild(); }
 }
 function ask(text, choices) {
   if (!askEl.hidden) return Promise.resolve(null);
