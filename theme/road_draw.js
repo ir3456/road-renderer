@@ -124,14 +124,24 @@ function heightAt(h, D, d) {
 
 function shoulders(ctx, a, b, side, pal, D, from = 0, fromB = from) {
   ctx.lineWidth = 1;
-  const ta = side < 0 ? a.tl : a.tr, tb = side < 0 ? b.tl : b.tr;
-  let ax = a.sx + side * Math.max(a.sw, from * a.ppm), ay = a.sy, bx = b.sx + side * Math.max(b.sw, fromB * b.ppm), by = b.sy;
+  const edge = (p, f) => [p.sx + side * Math.max(p.sw, f * p.ppm), p.sy];
+  const cut = (p, f) => {
+    const t = side < 0 ? p.tl : p.tr;
+    if (!f) return t;
+    let j = 0; while (j < D.length && D[j] <= f) j++;
+    const [x0, y0] = j ? t[j - 1] : edge(p, 0), [x1, y1] = t[Math.min(j, t.length - 1)], d0 = j ? D[j - 1] : p.hw, u = Math.max(0, Math.min(1, (f - d0) / (D[Math.min(j, D.length - 1)] - d0)));
+    return [[x0 + (x1 - x0) * u, y0 + (y1 - y0) * u], ...t.slice(j)];
+  };
+  let ta = cut(a, from), tb = cut(b, fromB);
+  while (ta.length < tb.length) ta = [ta[0], ...ta];
+  while (tb.length < ta.length) tb = [tb[0], ...tb];
+  let [ax, ay] = edge(a, from), [bx, by] = edge(b, fromB);
   for (let j = 0; j < ta.length; j++) {
-    if (D[j] <= from) continue;
-    const [x1, y1] = ta[j], [x2, y2] = tb[j], rise = (ay - y1) / Math.max(1, Math.abs(x1 - ax));
-    if (Math.abs(rise) < 0.03) { ax = x1; ay = y1; bx = x2; by = y2; continue; }
-    ctx.fillStyle = ctx.strokeStyle = `rgb(${(rise < 0.15 ? pal.terrain.grass : rise < 0.6 ? pal.terrain.scrub : pal.terrain.rock)[0]})`;
-    ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(x1, y1); ctx.lineTo(x2, y2); ctx.lineTo(bx, by); ctx.closePath(); ctx.fill(); ctx.stroke();
+    const [x1, y1] = ta[j], [x2, y2] = tb[j], ra = (ay - y1) / Math.max(1, Math.abs(x1 - ax)), rb = (by - y2) / Math.max(1, Math.abs(x2 - bx)), rise = Math.abs(ra) > Math.abs(rb) ? ra : rb;
+    if (Math.abs(rise) >= 0.03) {
+      ctx.fillStyle = ctx.strokeStyle = `rgb(${(rise < 0.15 ? pal.terrain.grass : rise < 0.6 ? pal.terrain.scrub : pal.terrain.rock)[0]})`;
+      ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(x1, y1); ctx.lineTo(x2, y2); ctx.lineTo(bx, by); ctx.closePath(); ctx.fill(); ctx.stroke();
+    }
     ax = x1; ay = y1; bx = x2; by = y2;
   }
 }
