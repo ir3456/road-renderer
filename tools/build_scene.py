@@ -412,6 +412,24 @@ def water_sides(elements, cos0, xs, ys, nx, ny):
     return [[v and [round(v[0], 1), round(v[1], 1)] for v in b] for b in best]
 
 
+SIDE_REACH = 50
+
+
+def side_ways(hwys, match, xs, ys, hx, hy, nx, ny):
+    """Per sample, left and right: [near, far, kind] m from the centerline of the nearest other highway running within 30 degrees of the route inside SIDE_REACH, or None."""
+    route = np.column_stack([xs, ys]); normal = np.column_stack([nx, ny]) * SIDE_REACH
+    best = [[None] * len(xs), [None] * len(xs)]
+    for wi, (e, line) in enumerate(hwys):
+        info = way_info(e['tags']); sg = np.diff(line, axis=0); sg /= np.maximum(1e-9, np.hypot(*sg.T))[:, None]
+        for si, s in enumerate((1, -1)):
+            a, b, t, _ = ray_hits(route, s * normal, line, pad=0)
+            ok = (match[a] != wi) & (np.abs(hx[a] * sg[b, 0] + hy[a] * sg[b, 1]) > 0.866)
+            for i, d in zip(a[ok], t[ok] * SIDE_REACH):
+                iv = [round(max(0, d - info['width'] / 2), 1), round(d + info['width'] / 2, 1), info['kind']]
+                if best[si][i] is None or iv[0] < best[si][i][0]: best[si][i] = iv
+    return best
+
+
 # ---------------- DEM ----------------
 def parse_tiff(buf):
     e = '<' if buf[:2] == b'II' else '>'
@@ -518,6 +536,7 @@ def main():
         scene['left'], scene['right'] = osm_tags(els, xs, ys, cos0, lx, ly, rx, ry)
         scene['waterL'], scene['waterR'] = water_sides(els, cos0, xs, ys, nx, ny)
         hwys = highways(els, cos0); match = match_route(hwys, xs, ys)
+        scene['sideL'], scene['sideR'] = side_ways(hwys, match, xs, ys, hx, hy, nx, ny)
         if (match >= 0).any():
             ids = sorted(set(match.tolist())); scene['ways'] = [way_info(hwys[w][0]['tags']) for w in ids]; scene['way'] = [ids.index(w) for w in match.tolist()]
             scene['road'] = ['tunnel' if 'tunnel' in scene['ways'][w] else 'bridge' if 'bridge' in scene['ways'][w] else '' for w in scene['way']]

@@ -61,7 +61,11 @@ export function applyScene(road, scene, P) {
       if (P.streetSigns === 'on' && x.name) signs.push({ k: i0 - 1, kind: 'streetsign', offset: x.side === 'L' ? -2 : 2, text: x.name.slice(0, 15) });
     }
   }
-  road.water = P.water === 'on' && scene.waterL ? Array.from({ length: road.n }, (_, i) => { const j = at(i), l = scene.waterL[j], r = scene.waterR[j]; return l || r ? [l, r] : null; }) : null;
+  const band = (j, wl, sl) => {
+    const w = P.water === 'on' && wl?.[j], v = P.sideWays === 'on' && sl?.[j], c = v && (v[0] + v[1]) / 2, hw = v && (v[1] - v[0]) / 2 * P.roadScale, s = v && [Math.max(0, c - hw), c + hw, v[2]];
+    return w && s ? (w[0] <= s[0] ? w : s) : w || s || null;
+  };
+  road.water = scene.waterL || scene.sideL ? Array.from({ length: road.n }, (_, i) => { const j = at(i), l = band(j, scene.waterL, scene.sideL), r = band(j, scene.waterR, scene.sideR); return l || r ? [l, r] : null; }) : null;
   for (let i = 0; i < road.n; i++) {
     const j = at(i);
     let list = null;

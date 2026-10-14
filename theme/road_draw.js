@@ -65,7 +65,7 @@ export function drawRoad(ctx, frame, P, pal) {
     if (wt) for (const side of [-1, 1]) {
       const v = wt[side < 0 ? 0 : 1];
       if (!v) continue;
-      ctx.fillStyle = mix(pal, pal.water[alt], fog);
+      ctx.fillStyle = mix(pal, (v[2] ? pal[v[2]] || pal.road : pal.water)[alt], fog);
       ctx.beginPath(); ctx.moveTo(a.sx + side * Math.max(a.sw, v[0] * a.ppm), a.sy); ctx.lineTo(a.sx + side * v[1] * a.ppm, a.sy); ctx.lineTo(b.sx + side * v[1] * b.ppm, b.sy); ctx.lineTo(b.sx + side * Math.max(b.sw, v[0] * b.ppm), b.sy); ctx.closePath(); ctx.fill();
     }
     ctx.fillStyle = mix(pal, (pal[kind] || pal.road)[alt], fog);
