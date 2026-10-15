@@ -92,3 +92,20 @@ export function applyScene(road, scene, P) {
   for (const s of signs) if (s.k >= 0 && s.k < road.n) (road.props[s.k] ||= []).push({ kind: s.kind, offset: s.offset ?? 1.5, text: s.text });
   road.skyline = scene.horizon || null;
 }
+
+/** Warning signs from the road geometry alone, placed where the lookahead first sees the feature: a turn sign when the heading changes 60° within the next 150 m (reset below 30°), a hill sign when the grade reaches 2% over the next 30 m and 2.5% over the next 100 m (reset below 1%). */
+export function warnSigns(road) {
+  const { n, L, ele, dTheta, props } = road, lt = Math.round(150 / L), lh = Math.round(30 / L), lf = Math.round(100 / L);
+  const put = (k, kind) => (props[k] ||= []).push({ kind, offset: 1.5 });
+  const grade = (i, look) => i + look < n ? (ele[i + look] - ele[i]) / (look * L) : 0;
+  let turn = 0, hill = 0;
+  for (let i = 0; i < n; i++) {
+    let dth = 0; for (let k = i + 1; k <= i + lt && k < n; k++) dth += dTheta[k];
+    const a = Math.abs(dth), t = a >= Math.PI / 3 ? Math.sign(dth) : a < Math.PI / 6 ? 0 : turn;
+    if (t && t !== turn) put(i, t > 0 ? 'turnL' : 'turnR');
+    turn = t;
+    const g = grade(i, lh), gf = grade(i, lf), h = g >= 0.02 && gf >= 0.025 ? 1 : g <= -0.02 && gf <= -0.025 ? -1 : Math.abs(g) < 0.01 ? 0 : hill;
+    if (h && h !== hill) put(i, h > 0 ? 'uphill' : 'downhill');
+    hill = h;
+  }
+}

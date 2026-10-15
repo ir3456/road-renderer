@@ -109,7 +109,7 @@
 import { parseGpx, buildRoad as buildRoadModel, toLatLon, smooth } from './road.js';
 import { render } from './render.js';
 import { loadSprites } from './sprites.js';
-import { placeholderScene, applyScene } from './scene.js';
+import { placeholderScene, applyScene, warnSigns } from './scene.js';
 import { makeGhost } from './ghost.js';
 import * as kickr from './kickr.js';
 import { startRide, record, toGpx } from './ride.js';
@@ -208,6 +208,7 @@ function buildRoad() {
   if (!track) return;
   road = buildRoadModel(track, P);
   if (scene) applyScene(road, scene, P); else placeholderScene(road, P);
+  if (P.warnSigns === 'on') warnSigns(road);
   playerZ = Math.min(playerZ, road.total - 1);
   profile.draw(road);
 }

@@ -1,15 +1,12 @@
 {
   "pxPerMeter": 4,
-  "pine_1": {
-    "file": "pine_1.png"
-  },
-  "tree_1": {
-    "file": "tree_1.png"
-  },
-  "tree_2": {
-    "file": "tree_2.png"
-  },
-  "tree_3": {
-    "file": "tree_3.png"
-  }
+  "pine_1": { "file": "pine_1.png" },
+  "tree_1": { "file": "tree_1.png" },
+  "tree_2": { "file": "tree_2.png" },
+  "tree_3": { "file": "tree_3.png" },
+  "stop_sign": { "file": "stop_sign.png", "meters": 3 },
+  "left_turn_sign": { "file": "left_turn_sign.png", "meters": 3 },
+  "right_turn_sign": { "file": "right_turn_sign.png", "meters": 3 },
+  "uphill_sign": { "file": "uphill_sign.png", "meters": 3 },
+  "downhill_sign": { "file": "downhill_sign.png", "meters": 3 }
 }

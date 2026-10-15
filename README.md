@@ -85,6 +85,7 @@ Levers under **Map roads**:
 - `Smallest side road drawn`: everything (paths, service roads; the default), streets and up (residential+), or collectors and up (tertiary+). Crossings narrower than 6 m (service roads, paths) are drawn without edge or centre lines; paths are brown, trails tan.
 - `Street name signs`: a green plate with the crossing road's name (first 15 characters) on a pole at the near corner, drawn on a canvas at load time rather than from the sprite sheet.
 - `Stop signs & signals`: a stop sign before the junction or a signal pole after it, on the right, when OSM has the node.
+- `Turn & hill warning signs`: from the road geometry alone, no scene needed. A left or right turn sign where the heading changes 60° within the next 150 m (reset below 30°), an uphill or downhill sign where the grade reaches 2% over the next 30 m and 2.5% over the next 100 m (reset below 1%), each placed on the right where the lookahead first sees it. Sprites `left_turn_sign`, `right_turn_sign`, `uphill_sign`, `downhill_sign` in `sprites/art/`.
 
 
 ## Roadside terrain and sprites

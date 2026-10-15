@@ -40,6 +40,7 @@ export const LEVERS = [
   { key: 'juncMin',      label: 'Smallest side road drawn', options: { all: 'Everything (paths, alleys)', streets: 'Streets and up', collector: 'Collectors and up' }, def: 'all', rebuild: true },
   { key: 'juncSigns',    label: 'Stop signs & signals', options: { on: 'On', off: 'Off' }, def: 'on', rebuild: true },
   { key: 'streetSigns',  label: 'Street name signs', options: { on: 'On', off: 'Off' }, def: 'on', rebuild: true },
+  { key: 'warnSigns',    label: 'Turn & hill warning signs', options: { on: 'On', off: 'Off' }, def: 'on', rebuild: true },
   { group: 'Trainer' },
   { key: 'physRing',     label: 'Physical chainring (teeth)', min: 20, max: 60, step: 1, def: 34 },
   { key: 'physCog',      label: 'Physical cog (teeth)',       min: 9,  max: 36, step: 1, def: 14 },
