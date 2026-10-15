@@ -203,7 +203,7 @@ export function drawSprites(ctx, frame, P, assets, kinds, pal) {
 }
 
 export const SPRITES = ['sprites/placeholder/manifest.json', 'sprites/bike/manifest.json', 'sprites/art/manifest.json'];
-export const KINDS = { pine: ['pine'], tree: ['tree_1', 'tree_2', 'tree_3'], bush: ['bush'], rock: ['rock'], sign: ['sign'], building: ['building'], cliff: ['cliff'], cabin: ['cabin'], rider: ['bikeback'], ghost: ['bikeback'], bankL: ['bankL'], bankR: ['bankR'], rocktile: ['rocktile'], stopsign: ['stopsign'], signal: ['signal'] };
+export const KINDS = { pine: ['pine_1'], tree: ['tree_1', 'tree_2', 'tree_3'], bush: ['bush'], rock: ['rock'], sign: ['sign'], building: ['building'], cliff: ['cliff'], cabin: ['cabin'], rider: ['bikeback'], ghost: ['bikeback'], bankL: ['bankL'], bankR: ['bankR'], rocktile: ['rocktile'], stopsign: ['stopsign'], signal: ['signal'] };
 
 /** A theme is a palette plus the sprite manifests and the prop kind → sprite name table; the drawing is shared. */
 export function theme(name, pal, { sprites = SPRITES, kinds = KINDS } = {}) {

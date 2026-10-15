@@ -1,7 +1,15 @@
 {
   "pxPerMeter": 4,
-  "pine": { "file": "pine_1.png" },
-  "tree_1": { "file": "tree_1.png" },
-  "tree_2": { "file": "tree_2.png" },
-  "tree_3": { "file": "tree_3.png" }
+  "pine_1": {
+    "file": "pine_1.png"
+  },
+  "tree_1": {
+    "file": "tree_1.png"
+  },
+  "tree_2": {
+    "file": "tree_2.png"
+  },
+  "tree_3": {
+    "file": "tree_3.png"
+  }
 }
