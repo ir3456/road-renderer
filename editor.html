@@ -1,389 +1,892 @@
 <!doctype html>
 <html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Ride Editor</title>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
-<style>
-  html, body { margin: 0; height: 100%; font: 14px/1.4 -apple-system, system-ui, sans-serif; background: #111; color: #eee; }
-  #map { position: absolute; inset: 0 0 220px 0; }
-  #panel { position: absolute; left: 0; right: 0; bottom: 0; height: 220px; background: #1b1b1b; border-top: 1px solid #333; padding: 10px 16px; box-sizing: border-box; display: flex; flex-direction: column; gap: 8px; }
-  #profile { width: 100%; height: 100px; display: block; cursor: crosshair; }
-  #scrub { width: 100%; margin: 0; }
-  .row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
-  .stats { display: flex; gap: 18px; margin-left: auto; font-variant-numeric: tabular-nums; }
-  .stats span b { color: #8ab4f8; font-weight: 600; display: inline-block; text-align: right; }
-  #clock { width: 8.5ch; } #elapsed { width: 6.5ch; } #dist { width: 8ch; } #spd { width: 8ch; } #pwr { width: 6ch; } #ele { width: 7ch; }
-  button, select, input[type=text] { background: #2a2a2a; color: #eee; border: 1px solid #444; border-radius: 6px; padding: 5px 12px; font: inherit; }
-  button, select { cursor: pointer; } button:hover, select:hover { background: #333; }
-  button:disabled { opacity: .4; cursor: default; }
-  input[type=text] { padding: 4px 6px; width: 4ch; text-align: center; font-variant-numeric: tabular-nums; }
-  label { display: flex; align-items: center; gap: 5px; cursor: pointer; }
-  #title { font-weight: 600; color: #bbb; }
-  #status { color: #8ab4f8; margin-left: auto; }
-  .leaflet-container { background: #0d0d0d; }
-</style>
-</head>
-<body>
-<div id="map"></div>
-<div id="panel">
-  <canvas id="profile"></canvas>
-  <input id="scrub" type="range" min="0" max="1000000" value="0" step="1">
-  <div class="row">
-    <button id="play">Play</button>
-    <select id="speed">
-      <option value="1">1x</option><option value="2">2x</option><option value="5">5x</option>
-      <option value="10" selected>10x</option><option value="30">30x</option><option value="100">100x</option><option value="300">300x</option>
-    </select>
-    <label><input id="trail" type="checkbox" checked> Trail</label>
-    <label><input id="route" type="checkbox" checked> Full route</label>
-    <label><input id="skip" type="checkbox" checked> Skip stops</label>
-    <label><input id="follow" type="checkbox"> Follow</label>
-    <button id="rider" title="Ride this file in the renderer">Rider</button>
-    <div class="stats">
-      <span>Clock <b id="clock">–</b></span>
-      <span>Elapsed <b id="elapsed">–</b></span>
-      <span>Dist <b id="dist">–</b></span>
-      <span>Speed <b id="spd">–</b></span>
-      <span>Power <b id="pwr">–</b></span>
-      <span>Elev <b id="ele">–</b></span>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Ride Editor</title>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"
+    />
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        font:
+          14px/1.4 -apple-system,
+          system-ui,
+          sans-serif;
+        background: #111;
+        color: #eee;
+      }
+      #map {
+        position: absolute;
+        inset: 0 0 220px 0;
+      }
+      #panel {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: 220px;
+        background: #1b1b1b;
+        border-top: 1px solid #333;
+        padding: 10px 16px;
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      #profile {
+        width: 100%;
+        height: 100px;
+        display: block;
+        cursor: crosshair;
+      }
+      #scrub {
+        width: 100%;
+        margin: 0;
+      }
+      .row {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        flex-wrap: wrap;
+      }
+      .stats {
+        display: flex;
+        gap: 18px;
+        margin-left: auto;
+        font-variant-numeric: tabular-nums;
+      }
+      .stats span b {
+        color: #8ab4f8;
+        font-weight: 600;
+        display: inline-block;
+        text-align: right;
+      }
+      #clock {
+        width: 8.5ch;
+      }
+      #elapsed {
+        width: 6.5ch;
+      }
+      #dist {
+        width: 8ch;
+      }
+      #spd {
+        width: 8ch;
+      }
+      #pwr {
+        width: 6ch;
+      }
+      #ele {
+        width: 7ch;
+      }
+      button,
+      select,
+      input[type="text"] {
+        background: #2a2a2a;
+        color: #eee;
+        border: 1px solid #444;
+        border-radius: 6px;
+        padding: 5px 12px;
+        font: inherit;
+      }
+      button,
+      select {
+        cursor: pointer;
+      }
+      button:hover,
+      select:hover {
+        background: #333;
+      }
+      button:disabled {
+        opacity: 0.4;
+        cursor: default;
+      }
+      input[type="text"] {
+        padding: 4px 6px;
+        width: 4ch;
+        text-align: center;
+        font-variant-numeric: tabular-nums;
+      }
+      label {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        cursor: pointer;
+      }
+      #title {
+        font-weight: 600;
+        color: #bbb;
+      }
+      #status {
+        color: #8ab4f8;
+        margin-left: auto;
+      }
+      .leaflet-container {
+        background: #0d0d0d;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="map"></div>
+    <div id="panel">
+      <canvas id="profile"></canvas>
+      <input id="scrub" type="range" min="0" max="1000000" value="0" step="1" />
+      <div class="row">
+        <button id="play">Play</button>
+        <select id="speed">
+          <option value="1">1x</option>
+          <option value="2">2x</option>
+          <option value="5">5x</option>
+          <option value="10" selected>10x</option>
+          <option value="30">30x</option>
+          <option value="100">100x</option>
+          <option value="300">300x</option>
+        </select>
+        <label><input id="trail" type="checkbox" checked /> Trail</label>
+        <label><input id="route" type="checkbox" checked /> Full route</label>
+        <label><input id="skip" type="checkbox" checked /> Skip stops</label>
+        <label><input id="follow" type="checkbox" /> Follow</label>
+        <button id="rider" title="Ride this file in the renderer">Rider</button>
+        <div class="stats">
+          <span>Clock <b id="clock">–</b></span>
+          <span>Elapsed <b id="elapsed">–</b></span>
+          <span>Dist <b id="dist">–</b></span>
+          <span>Speed <b id="spd">–</b></span>
+          <span>Power <b id="pwr">–</b></span>
+          <span>Elev <b id="ele">–</b></span>
+        </div>
+      </div>
+      <div class="row">
+        <span id="title">Load a GPX, TCX or FIT file, or drop one here</span>
+        <button id="load">Load file</button>
+        <input id="file" type="file" accept=".gpx,.tcx,.fit" hidden />
+        <button id="fixdrift">Fix elevation drift</button>
+        <button id="level">Level start/end</button>
+        <button id="resetele">Reset elevation</button>
+        <button id="markA" title="[">Mark start</button>
+        <button id="markB" title="]">Mark end</button>
+        <button id="crop" disabled>Crop</button>
+        <button
+          id="unstop"
+          title="Replace short stops (lights, signs) with the speed held before braking; later times shift earlier"
+        >
+          Remove stops
+        </button>
+        <label>≤ <input id="maxstop" type="text" value="120" /> s</label>
+        <label
+          title="Stops at least this long are marked on the profile; click one to snap, , and . jump between them"
+          >Stops ≥ <input id="minstop" type="text" value="60" /> s</label
+        >
+        <input
+          id="exportname"
+          type="text"
+          style="width: 22ch; text-align: left"
+          placeholder="file name"
+        />
+        <button id="export">Export GPX</button>
+        <span id="status"></span>
+      </div>
     </div>
-  </div>
-  <div class="row">
-    <span id="title">Load a GPX, TCX or FIT file, or drop one here</span>
-    <button id="load">Load file</button>
-    <input id="file" type="file" accept=".gpx,.tcx,.fit" hidden>
-    <button id="fixdrift">Fix elevation drift</button>
-    <button id="level">Level start/end</button>
-    <button id="resetele">Reset elevation</button>
-    <button id="markA" title="[">Mark start</button>
-    <button id="markB" title="]">Mark end</button>
-    <button id="crop" disabled>Crop</button>
-    <button id="unstop" title="Replace short stops (lights, signs) with the speed held before braking; later times shift earlier">Remove stops</button>
-    <label>≤ <input id="maxstop" type="text" value="120"> s</label>
-    <label title="Stops at least this long are marked on the profile; click one to snap, , and . jump between them">Stops ≥ <input id="minstop" type="text" value="60"> s</label>
-    <input id="exportname" type="text" style="width:22ch;text-align:left" placeholder="file name">
-    <button id="export">Export GPX</button>
-    <span id="status"></span>
-  </div>
-</div>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-<script>
-const GAP = 15, ROUTE_SPEED = 15 * 1609.344 / 3600;
-const TZ = 'America/Denver';
-const $ = id => document.getElementById(id);
-const fmt = s => { s = Math.round(s); const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), x = s % 60; return (h ? h + ':' : '') + String(m).padStart(h ? 2 : 1, '0') + ':' + String(x).padStart(2, '0'); };
-const ft = m => Math.round(m * 3.28084);
-const status = msg => $('status').textContent = msg;
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+    <script>
+      const GAP = 15,
+        ROUTE_SPEED = (15 * 1609.344) / 3600;
+      const TZ = "America/Denver";
+      const $ = (id) => document.getElementById(id);
+      const fmt = (s) => {
+        s = Math.round(s);
+        const h = Math.floor(s / 3600),
+          m = Math.floor((s % 3600) / 60),
+          x = s % 60;
+        return (
+          (h ? h + ":" : "") +
+          String(m).padStart(h ? 2 : 1, "0") +
+          ":" +
+          String(x).padStart(2, "0")
+        );
+      };
+      const ft = (m) => Math.round(m * 3.28084);
+      const status = (msg) => ($("status").textContent = msg);
 
-const map = L.map('map').setView([40.7, -111.9], 11);
-const esri = 'https://server.arcgisonline.com/ArcGIS/rest/services/';
-const dark = L.layerGroup([
-  L.tileLayer(esri + 'Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', { maxZoom: 16, attribution: 'Tiles &copy; Esri' }),
-  L.tileLayer(esri + 'Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}', { maxZoom: 16 })
-]).addTo(map);
-const streets = L.tileLayer(esri + 'World_Street_Map/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, attribution: 'Tiles &copy; Esri' });
-L.control.layers({ Dark: dark, Streets: streets }, null, { position: 'topright' }).addTo(map);
-const route = L.polyline([], { color: '#555', weight: 3 }).addTo(map);
-const trail = L.polyline([], { color: '#f28b30', weight: 4 }).addTo(map);
-const keep = L.polyline([], { color: '#8ab4f8', weight: 5, opacity: 0.8 }).addTo(map);
-const dot = L.circleMarker([0, 0], { radius: 8, color: '#fff', weight: 2, fillColor: '#f28b30', fillOpacity: 1 }).addTo(map);
+      const map = L.map("map").setView([40.7, -111.9], 11);
+      const esri = "https://server.arcgisonline.com/ArcGIS/rest/services/";
+      const dark = L.layerGroup([
+        L.tileLayer(
+          esri + "Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}",
+          { maxZoom: 16, attribution: "Tiles &copy; Esri" },
+        ),
+        L.tileLayer(
+          esri + "Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}",
+          { maxZoom: 16 },
+        ),
+      ]).addTo(map);
+      const streets = L.tileLayer(
+        esri + "World_Street_Map/MapServer/tile/{z}/{y}/{x}",
+        { maxZoom: 19, attribution: "Tiles &copy; Esri" },
+      );
+      L.control
+        .layers({ Dark: dark, Streets: streets }, null, {
+          position: "topright",
+        })
+        .addTo(map);
+      const route = L.polyline([], { color: "#555", weight: 3 }).addTo(map);
+      const trail = L.polyline([], { color: "#f28b30", weight: 4 }).addTo(map);
+      const keep = L.polyline([], {
+        color: "#8ab4f8",
+        weight: 5,
+        opacity: 0.8,
+      }).addTo(map);
+      const dot = L.circleMarker([0, 0], {
+        radius: 8,
+        color: "#fff",
+        weight: 2,
+        fillColor: "#f28b30",
+        fillOpacity: 1,
+      }).addTo(map);
 
-// Points are [t (s from ride.start), lat, lon, ele (m), dist (m), speed (m/s), power (W)]. Routes without timestamps get times at ROUTE_SPEED.
-let ride = null, P, origEle, realT, compT, T, latlngs, totalDist, eleMin, eleMax;
-let cropA = null, cropB = null, stops = [];
-let cur = 0, curDist = 0, playing = false, last = null;
+      // Points are [t (s from ride.start), lat, lon, ele (m), dist (m), speed (m/s), power (W)]. Routes without timestamps get times at ROUTE_SPEED.
+      let ride = null,
+        P,
+        origEle,
+        realT,
+        compT,
+        T,
+        latlngs,
+        totalDist,
+        eleMin,
+        eleMax;
+      let cropA = null,
+        cropB = null,
+        stops = [];
+      let cur = 0,
+        curDist = 0,
+        playing = false,
+        last = null;
 
-function haversine(a, b) {
-  const R = 6371000, toR = Math.PI / 180;
-  const dLat = (b[0] - a[0]) * toR, dLon = (b[1] - a[1]) * toR;
-  const h = Math.sin(dLat / 2) ** 2 + Math.cos(a[0] * toR) * Math.cos(b[0] * toR) * Math.sin(dLon / 2) ** 2;
-  return 2 * R * Math.asin(Math.sqrt(h));
-}
+      function haversine(a, b) {
+        const R = 6371000,
+          toR = Math.PI / 180;
+        const dLat = (b[0] - a[0]) * toR,
+          dLon = (b[1] - a[1]) * toR;
+        const h =
+          Math.sin(dLat / 2) ** 2 +
+          Math.cos(a[0] * toR) * Math.cos(b[0] * toR) * Math.sin(dLon / 2) ** 2;
+        return 2 * R * Math.asin(Math.sqrt(h));
+      }
 
-function loadRide(r) {
-  ride = r; P = r.pts;
-  if (P[0][4] == null) { let d = 0; P[0][4] = 0; for (let i = 1; i < P.length; i++) { d += haversine([P[i-1][1], P[i-1][2]], [P[i][1], P[i][2]]); P[i][4] = d; } }
-  if (!r.hasTime) for (const p of P) p[0] = p[4] / ROUTE_SPEED;
-  for (let i = 0; i < P.length; i++) if (P[i][5] == null) {
-    const j = Math.max(0, i - 1), dt = P[i][0] - P[j][0];
-    P[i][5] = dt > 0 && dt <= GAP ? (P[i][4] - P[j][4]) / dt : 0;
-  }
-  for (const p of P) if (p[6] == null) p[6] = 0;
-  origEle = P.map(p => p[3]);
-  realT = P.map(p => p[0]);
-  compT = [0];
-  for (let i = 1; i < P.length; i++) { const dt = realT[i] - realT[i-1]; compT.push(compT[i-1] + (dt > GAP ? 1 : dt)); }
-  T = $('skip').checked ? compT : realT;
-  latlngs = P.map(p => [p[1], p[2]]);
-  totalDist = P[P.length - 1][4];
-  route.setLatLngs(latlngs); trail.setLatLngs([]);
-  map.fitBounds(route.getBounds(), { padding: [30, 30], animate: false });
-  $('exportname').value = safeName() + '_fixed';
-  $('title').textContent = r.name + ' · ' + (r.hasTime ? new Date(r.start * 1000).toLocaleDateString('en-US', { timeZone: TZ, dateStyle: 'long' }) : 'route, no timestamps');
-  $('unstop').disabled = !r.hasTime;
-  cur = 0; setPlaying(false); cropA = cropB = null; findStops(); markChanged(); eleChanged();
-}
-function findStops() {
-  const min = Math.max(GAP, +$('minstop').value || 0);
-  stops = []; for (let i = 1; i < P.length; i++) if (realT[i] - realT[i - 1] > min) stops.push(i);
-}
-$('minstop').onchange = () => { if (ride) { findStops(); render(); } };
-function markChanged() {
-  const i0 = cropA ?? 0, i1 = cropB ?? P.length - 1;
-  keep.setLatLngs(cropA === null && cropB === null ? [] : latlngs.slice(i0, i1 + 1));
-  $('crop').disabled = !(i0 < i1 && (cropA !== null || cropB !== null));
-}
-function eleChanged() {
-  eleMin = Infinity; eleMax = -Infinity;
-  for (const p of P) { if (p[3] < eleMin) eleMin = p[3]; if (p[3] > eleMax) eleMax = p[3]; }
-  render();
-}
+      function loadRide(r) {
+        ride = r;
+        P = r.pts;
+        if (P[0][4] == null) {
+          let d = 0;
+          P[0][4] = 0;
+          for (let i = 1; i < P.length; i++) {
+            d += haversine([P[i - 1][1], P[i - 1][2]], [P[i][1], P[i][2]]);
+            P[i][4] = d;
+          }
+        }
+        if (!r.hasTime) for (const p of P) p[0] = p[4] / ROUTE_SPEED;
+        for (let i = 0; i < P.length; i++)
+          if (P[i][5] == null) {
+            const j = Math.max(0, i - 1),
+              dt = P[i][0] - P[j][0];
+            P[i][5] = dt > 0 && dt <= GAP ? (P[i][4] - P[j][4]) / dt : 0;
+          }
+        for (const p of P) if (p[6] == null) p[6] = 0;
+        origEle = P.map((p) => p[3]);
+        realT = P.map((p) => p[0]);
+        compT = [0];
+        for (let i = 1; i < P.length; i++) {
+          const dt = realT[i] - realT[i - 1];
+          compT.push(compT[i - 1] + (dt > GAP ? 1 : dt));
+        }
+        T = $("skip").checked ? compT : realT;
+        latlngs = P.map((p) => [p[1], p[2]]);
+        totalDist = P[P.length - 1][4];
+        route.setLatLngs(latlngs);
+        trail.setLatLngs([]);
+        map.fitBounds(route.getBounds(), { padding: [30, 30], animate: false });
+        $("exportname").value = safeName() + "_fixed";
+        $("title").textContent =
+          r.name +
+          " · " +
+          (r.hasTime
+            ? new Date(r.start * 1000).toLocaleDateString("en-US", {
+                timeZone: TZ,
+                dateStyle: "long",
+              })
+            : "route, no timestamps");
+        $("unstop").disabled = !r.hasTime;
+        cur = 0;
+        setPlaying(false);
+        cropA = cropB = null;
+        findStops();
+        markChanged();
+        eleChanged();
+      }
+      function findStops() {
+        const min = Math.max(GAP, +$("minstop").value || 0);
+        stops = [];
+        for (let i = 1; i < P.length; i++)
+          if (realT[i] - realT[i - 1] > min) stops.push(i);
+      }
+      $("minstop").onchange = () => {
+        if (ride) {
+          findStops();
+          render();
+        }
+      };
+      function markChanged() {
+        const i0 = cropA ?? 0,
+          i1 = cropB ?? P.length - 1;
+        keep.setLatLngs(
+          cropA === null && cropB === null ? [] : latlngs.slice(i0, i1 + 1),
+        );
+        $("crop").disabled = !(i0 < i1 && (cropA !== null || cropB !== null));
+      }
+      function eleChanged() {
+        eleMin = Infinity;
+        eleMax = -Infinity;
+        for (const p of P) {
+          if (p[3] < eleMin) eleMin = p[3];
+          if (p[3] > eleMax) eleMax = p[3];
+        }
+        render();
+      }
 
-const prof = $('profile'), pctx = prof.getContext('2d');
-let pw = 0, ph = 0;
-function sizeProfile() {
-  const r = prof.getBoundingClientRect(), dpr = devicePixelRatio || 1;
-  pw = r.width; ph = r.height; prof.width = pw * dpr; prof.height = ph * dpr; pctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-}
-const px = d => d / totalDist * pw, py = e => ph - 6 - (e - eleMin) / (eleMax - eleMin || 1) * (ph - 14);
-function drawProfile(i) {
-  pctx.clearRect(0, 0, pw, ph);
-  pctx.beginPath(); pctx.moveTo(0, ph);
-  for (const p of P) pctx.lineTo(px(p[4]), py(p[3]));
-  pctx.lineTo(pw, ph); pctx.closePath();
-  pctx.fillStyle = '#2d3a4d'; pctx.fill();
-  pctx.beginPath();
-  for (let k = 0; k < P.length; k++) { const x = px(P[k][4]), y = py(P[k][3]); k ? pctx.lineTo(x, y) : pctx.moveTo(x, y); }
-  pctx.strokeStyle = '#8ab4f8'; pctx.lineWidth = 1.5; pctx.stroke();
-  for (const k of stops) {
-    const sx = px(P[k][4]), on = k === i;
-    pctx.beginPath(); pctx.moveTo(sx, 0); pctx.lineTo(sx, ph); pctx.strokeStyle = on ? '#fff' : 'rgba(229,192,123,.8)'; pctx.lineWidth = on ? 2 : 1; pctx.stroke();
-    if (on) { pctx.fillStyle = '#fff'; pctx.font = '11px system-ui'; pctx.textBaseline = 'top'; pctx.fillText('stop ' + fmt(realT[k] - realT[k - 1]), sx + 4, 2); }
-  }
-  pctx.fillStyle = 'rgba(0,0,0,.55)';
-  if (cropA !== null) pctx.fillRect(0, 0, px(P[cropA][4]), ph);
-  if (cropB !== null) pctx.fillRect(px(P[cropB][4]), 0, pw, ph);
-  const x = px(curDist), y = py(P[i][3]);
-  pctx.beginPath(); pctx.moveTo(x, 0); pctx.lineTo(x, ph); pctx.strokeStyle = '#f28b30'; pctx.lineWidth = 1; pctx.stroke();
-  pctx.beginPath(); pctx.arc(x, y, 5, 0, Math.PI * 2); pctx.fillStyle = '#f28b30'; pctx.fill(); pctx.strokeStyle = '#fff'; pctx.lineWidth = 1.5; pctx.stroke();
-  pctx.fillStyle = '#999'; pctx.font = '11px system-ui'; pctx.textBaseline = 'top'; pctx.fillText(ft(eleMax) + ' ft', 4, 2);
-  pctx.textBaseline = 'bottom'; pctx.fillText(ft(eleMin) + ' ft', 4, ph - 1);
-}
-function indexAtDist(d) {
-  let lo = 0, hi = P.length - 1;
-  while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (P[mid][4] <= d) lo = mid; else hi = mid - 1; }
-  return lo;
-}
-function seekDist(clientX) {
-  if (!ride) return;
-  const x = clientX - prof.getBoundingClientRect().left, d = Math.max(0, Math.min(1, x / pw)) * totalDist;
-  const k = stops.find(k => Math.abs(px(P[k][4]) - x) <= 6);
-  cur = T[k ?? indexAtDist(d)]; render();
-}
-let dragging = false;
-prof.onpointerdown = e => { dragging = true; prof.setPointerCapture(e.pointerId); seekDist(e.clientX); };
-prof.onpointermove = e => { if (dragging) seekDist(e.clientX); };
-prof.onpointerup = () => dragging = false;
-addEventListener('resize', () => { sizeProfile(); if (ride) render(); });
+      const prof = $("profile"),
+        pctx = prof.getContext("2d");
+      let pw = 0,
+        ph = 0;
+      function sizeProfile() {
+        const r = prof.getBoundingClientRect(),
+          dpr = devicePixelRatio || 1;
+        pw = r.width;
+        ph = r.height;
+        prof.width = pw * dpr;
+        prof.height = ph * dpr;
+        pctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      }
+      const px = (d) => (d / totalDist) * pw,
+        py = (e) =>
+          ph - 6 - ((e - eleMin) / (eleMax - eleMin || 1)) * (ph - 14);
+      function drawProfile(i) {
+        pctx.clearRect(0, 0, pw, ph);
+        pctx.beginPath();
+        pctx.moveTo(0, ph);
+        for (const p of P) pctx.lineTo(px(p[4]), py(p[3]));
+        pctx.lineTo(pw, ph);
+        pctx.closePath();
+        pctx.fillStyle = "#2d3a4d";
+        pctx.fill();
+        pctx.beginPath();
+        for (let k = 0; k < P.length; k++) {
+          const x = px(P[k][4]),
+            y = py(P[k][3]);
+          k ? pctx.lineTo(x, y) : pctx.moveTo(x, y);
+        }
+        pctx.strokeStyle = "#8ab4f8";
+        pctx.lineWidth = 1.5;
+        pctx.stroke();
+        for (const k of stops) {
+          const sx = px(P[k][4]),
+            on = k === i;
+          pctx.beginPath();
+          pctx.moveTo(sx, 0);
+          pctx.lineTo(sx, ph);
+          pctx.strokeStyle = on ? "#fff" : "rgba(229,192,123,.8)";
+          pctx.lineWidth = on ? 2 : 1;
+          pctx.stroke();
+          if (on) {
+            pctx.fillStyle = "#fff";
+            pctx.font = "11px system-ui";
+            pctx.textBaseline = "top";
+            pctx.fillText("stop " + fmt(realT[k] - realT[k - 1]), sx + 4, 2);
+          }
+        }
+        pctx.fillStyle = "rgba(0,0,0,.55)";
+        if (cropA !== null) pctx.fillRect(0, 0, px(P[cropA][4]), ph);
+        if (cropB !== null) pctx.fillRect(px(P[cropB][4]), 0, pw, ph);
+        const x = px(curDist),
+          y = py(P[i][3]);
+        pctx.beginPath();
+        pctx.moveTo(x, 0);
+        pctx.lineTo(x, ph);
+        pctx.strokeStyle = "#f28b30";
+        pctx.lineWidth = 1;
+        pctx.stroke();
+        pctx.beginPath();
+        pctx.arc(x, y, 5, 0, Math.PI * 2);
+        pctx.fillStyle = "#f28b30";
+        pctx.fill();
+        pctx.strokeStyle = "#fff";
+        pctx.lineWidth = 1.5;
+        pctx.stroke();
+        pctx.fillStyle = "#999";
+        pctx.font = "11px system-ui";
+        pctx.textBaseline = "top";
+        pctx.fillText(ft(eleMax) + " ft", 4, 2);
+        pctx.textBaseline = "bottom";
+        pctx.fillText(ft(eleMin) + " ft", 4, ph - 1);
+      }
+      function indexAtDist(d) {
+        let lo = 0,
+          hi = P.length - 1;
+        while (lo < hi) {
+          const mid = (lo + hi + 1) >> 1;
+          if (P[mid][4] <= d) lo = mid;
+          else hi = mid - 1;
+        }
+        return lo;
+      }
+      function seekDist(clientX) {
+        if (!ride) return;
+        const x = clientX - prof.getBoundingClientRect().left,
+          d = Math.max(0, Math.min(1, x / pw)) * totalDist;
+        const k = stops.find((k) => Math.abs(px(P[k][4]) - x) <= 6);
+        cur = T[k ?? indexAtDist(d)];
+        render();
+      }
+      let dragging = false;
+      prof.onpointerdown = (e) => {
+        dragging = true;
+        prof.setPointerCapture(e.pointerId);
+        seekDist(e.clientX);
+      };
+      prof.onpointermove = (e) => {
+        if (dragging) seekDist(e.clientX);
+      };
+      prof.onpointerup = () => (dragging = false);
+      addEventListener("resize", () => {
+        sizeProfile();
+        if (ride) render();
+      });
 
-function indexAt(t) {
-  let lo = 0, hi = T.length - 1;
-  while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (T[mid] <= t) lo = mid; else hi = mid - 1; }
-  return lo;
-}
-const scrub = $('scrub');
-function render() {
-  const i = indexAt(cur), j = Math.min(i + 1, P.length - 1);
-  const span = T[j] - T[i], f = span > 0 ? Math.min(1, (cur - T[i]) / span) : 0;
-  const a = P[i], b = P[j], pos = [a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f];
-  dot.setLatLng(pos);
-  if ($('trail').checked) trail.setLatLngs(latlngs.slice(0, i + 1).concat([pos]));
-  if ($('follow').checked) map.panTo(pos, { animate: false });
-  curDist = a[4] + (b[4] - a[4]) * f;
-  drawProfile(i);
-  scrub.value = Math.round(cur / T[T.length - 1] * 1e6);
-  $('dist').textContent = (curDist / 1609.34).toFixed(2) + ' mi';
-  $('ele').textContent = ft(a[3] + (b[3] - a[3]) * f) + ' ft';
-  $('clock').textContent = ride.hasTime ? new Date((ride.start + a[0] + (b[0] - a[0]) * f) * 1000).toLocaleTimeString('en-US', { timeZone: TZ }) : '–';
-  $('elapsed').textContent = ride.hasTime ? fmt(a[0] + (b[0] - a[0]) * f) : '–';
-  $('spd').textContent = ride.hasTime ? (a[5] * 2.23694).toFixed(1) + ' mph' : '–';
-  $('pwr').textContent = ride.hasTime ? a[6] + ' W' : '–';
-}
-function frame(ts) {
-  if (!playing) return;
-  if (last !== null) cur += (ts - last) / 1000 * +$('speed').value;
-  last = ts;
-  if (cur >= T[T.length - 1]) { cur = T[T.length - 1]; setPlaying(false); }
-  render();
-  if (playing) requestAnimationFrame(frame);
-}
-function setPlaying(on) {
-  playing = on && !!ride; last = null;
-  $('play').textContent = playing ? 'Pause' : 'Play';
-  if (playing) { if (cur >= T[T.length - 1]) cur = 0; requestAnimationFrame(frame); }
-}
-$('play').onclick = () => setPlaying(!playing);
-scrub.oninput = () => { if (ride) { cur = scrub.value / 1e6 * T[T.length - 1]; render(); } };
-$('trail').onchange = e => { if (!ride) return; if (e.target.checked) render(); else trail.setLatLngs([]); };
-$('route').onchange = e => e.target.checked ? route.addTo(map) : route.remove();
-$('skip').onchange = e => {
-  if (!ride) return;
-  const i = indexAt(cur), j = Math.min(i + 1, T.length - 1), f = T[j] > T[i] ? (cur - T[i]) / (T[j] - T[i]) : 0;
-  T = e.target.checked ? compT : realT;
-  cur = T[i] + (T[j] - T[i]) * f;
-  render();
-};
-document.addEventListener('keydown', e => {
-  if (['INPUT', 'SELECT', 'BUTTON'].includes(e.target.tagName) || !ride) return;
-  if (e.code === 'Space') { e.preventDefault(); setPlaying(!playing); }
-  if (e.code === 'ArrowRight') { cur = Math.min(T[T.length - 1], cur + 30); render(); }
-  if (e.code === 'ArrowLeft') { cur = Math.max(0, cur - 30); render(); }
-  if (e.key === ',' || e.key === '.') { const i = indexAt(cur), k = e.key === ',' ? stops.filter(k => k < i).pop() : stops.find(k => k > i); if (k !== undefined) { cur = T[k]; render(); } }
-  if (e.key === '[') $('markA').click();
-  if (e.key === ']') $('markB').click();
-});
+      function indexAt(t) {
+        let lo = 0,
+          hi = T.length - 1;
+        while (lo < hi) {
+          const mid = (lo + hi + 1) >> 1;
+          if (T[mid] <= t) lo = mid;
+          else hi = mid - 1;
+        }
+        return lo;
+      }
+      const scrub = $("scrub");
+      function render() {
+        const i = indexAt(cur),
+          j = Math.min(i + 1, P.length - 1);
+        const span = T[j] - T[i],
+          f = span > 0 ? Math.min(1, (cur - T[i]) / span) : 0;
+        const a = P[i],
+          b = P[j],
+          pos = [a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f];
+        dot.setLatLng(pos);
+        if ($("trail").checked)
+          trail.setLatLngs(latlngs.slice(0, i + 1).concat([pos]));
+        if ($("follow").checked) map.panTo(pos, { animate: false });
+        curDist = a[4] + (b[4] - a[4]) * f;
+        drawProfile(i);
+        scrub.value = Math.round((cur / T[T.length - 1]) * 1e6);
+        $("dist").textContent = (curDist / 1609.34).toFixed(2) + " mi";
+        $("ele").textContent = ft(a[3] + (b[3] - a[3]) * f) + " ft";
+        $("clock").textContent = ride.hasTime
+          ? new Date(
+              (ride.start + a[0] + (b[0] - a[0]) * f) * 1000,
+            ).toLocaleTimeString("en-US", { timeZone: TZ })
+          : "–";
+        $("elapsed").textContent = ride.hasTime
+          ? fmt(a[0] + (b[0] - a[0]) * f)
+          : "–";
+        $("spd").textContent = ride.hasTime
+          ? (a[5] * 2.23694).toFixed(1) + " mph"
+          : "–";
+        $("pwr").textContent = ride.hasTime ? a[6] + " W" : "–";
+      }
+      function frame(ts) {
+        if (!playing) return;
+        if (last !== null) cur += ((ts - last) / 1000) * +$("speed").value;
+        last = ts;
+        if (cur >= T[T.length - 1]) {
+          cur = T[T.length - 1];
+          setPlaying(false);
+        }
+        render();
+        if (playing) requestAnimationFrame(frame);
+      }
+      function setPlaying(on) {
+        playing = on && !!ride;
+        last = null;
+        $("play").textContent = playing ? "Pause" : "Play";
+        if (playing) {
+          if (cur >= T[T.length - 1]) cur = 0;
+          requestAnimationFrame(frame);
+        }
+      }
+      $("play").onclick = () => setPlaying(!playing);
+      scrub.oninput = () => {
+        if (ride) {
+          cur = (scrub.value / 1e6) * T[T.length - 1];
+          render();
+        }
+      };
+      $("trail").onchange = (e) => {
+        if (!ride) return;
+        if (e.target.checked) render();
+        else trail.setLatLngs([]);
+      };
+      $("route").onchange = (e) =>
+        e.target.checked ? route.addTo(map) : route.remove();
+      $("skip").onchange = (e) => {
+        if (!ride) return;
+        const i = indexAt(cur),
+          j = Math.min(i + 1, T.length - 1),
+          f = T[j] > T[i] ? (cur - T[i]) / (T[j] - T[i]) : 0;
+        T = e.target.checked ? compT : realT;
+        cur = T[i] + (T[j] - T[i]) * f;
+        render();
+      };
+      document.addEventListener("keydown", (e) => {
+        if (["INPUT", "SELECT", "BUTTON"].includes(e.target.tagName) || !ride)
+          return;
+        if (e.code === "Space") {
+          e.preventDefault();
+          setPlaying(!playing);
+        }
+        if (e.code === "ArrowRight") {
+          cur = Math.min(T[T.length - 1], cur + 30);
+          render();
+        }
+        if (e.code === "ArrowLeft") {
+          cur = Math.max(0, cur - 30);
+          render();
+        }
+        if (e.key === "," || e.key === ".") {
+          const i = indexAt(cur),
+            k =
+              e.key === ","
+                ? stops.filter((k) => k < i).pop()
+                : stops.find((k) => k > i);
+          if (k !== undefined) {
+            cur = T[k];
+            render();
+          }
+        }
+        if (e.key === "[") $("markA").click();
+        if (e.key === "]") $("markB").click();
+      });
 
-// ---- edits ----
-$('markA').onclick = () => { if (!ride) return; cropA = indexAt(cur); markChanged(); render(); };
-$('markB').onclick = () => { if (!ride) return; const i = indexAt(cur); cropB = stops.includes(i) ? i - 1 : i; markChanged(); render(); };
-$('crop').onclick = () => {
-  let i0 = cropA ?? 0; const i1 = cropB ?? P.length - 1, n = P.length;
-  while (i0 < i1 - 1 && (P[i0 + 1][4] - P[i0][4] < 0.5 || P[i0 + 1][4] - P[i0][4] > 25)) i0++;
-  const t0 = P[i0][0], d0 = P[i0][4];
-  loadRide({ ...ride, start: ride.start + t0, pts: P.slice(i0, i1 + 1).map(p => [p[0] - t0, p[1], p[2], p[3], p[4] - d0, p[5], p[6]]) });
-  status(`Cropped to ${P.length} of ${n} points, ${(totalDist / 1609.34).toFixed(2)} mi`);
-};
-$('unstop').onclick = () => {
-  const maxStop = +$('maxstop').value || 120, t = P.map(p => p[0]), d = P.map(p => p[4]), v = P.map(p => p[5]), n = P.length;
-  let saved = 0, drift = 0, count = 0, e0 = 0;
-  for (let a = 1; a < n - 1; a++) {
-    if (v[a] >= 1 || a <= e0) continue;
-    let b = a; while (b + 1 < n && v[b + 1] < 1) b++;
-    if (t[b] - t[a] < 3 || t[b] - t[a] > maxStop) { a = b; continue; }
-    let j = a; for (let k = a; k > 0 && t[a] - t[k] <= 20; k--) if (v[k] > v[j]) j = k;
-    const ref = v[j]; let s0 = j; while (v[s0] >= 0.8 * ref && s0 < a) s0++;
-    e0 = b + 1; while (e0 < n - 1 && v[e0] < 0.8 * ref && t[e0] - t[b] <= 30) e0++;
-    if (s0 <= 0 || e0 >= n - 1 || ref < 2) { a = b; continue; }
-    const D = haversine([P[s0][1], P[s0][2]], [P[e0][1], P[e0][2]]), old = P[e0][4] - P[s0][4], step = Math.max(1, D / ref / (e0 - s0));
-    for (let k = s0 + 1; k <= e0; k++) {
-      const f = (k - s0) / (e0 - s0);
-      P[k][1] = P[s0][1] + f * (P[e0][1] - P[s0][1]); P[k][2] = P[s0][2] + f * (P[e0][2] - P[s0][2]); P[k][3] = P[s0][3] + f * (P[e0][3] - P[s0][3]);
-      P[k][4] = P[s0][4] + f * D; P[k][5] = ref; P[k][0] = P[s0][0] + (k - s0) * step;
-    }
-    saved += t[e0] - t[s0] - (e0 - s0) * step; drift += old - D; count++;
-    for (let k = e0 + 1; k < n; k++) { P[k][0] = t[k] - saved; P[k][4] = d[k] - drift; }
-    a = e0;
-  }
-  loadRide(ride);
-  status(count ? `Removed ${count} stop${count > 1 ? 's' : ''}, ${fmt(saved)} and ${ft(drift)} ft of GPS drift` : 'No stops found');
-};
-$('fixdrift').onclick = () => {
-  if (!ride) return;
-  let offset = 0; const steps = [];
-  for (let i = 1; i < P.length; i++) {
-    const de = origEle[i] - origEle[i-1], dd = P[i][4] - P[i-1][4];
-    if (Math.abs(de) > 4 && Math.abs(de) > 0.5 * Math.max(dd, 1)) { offset -= de; steps.push(de); }
-    P[i][3] = origEle[i] + offset;
-  }
-  P[0][3] = origEle[0];
-  eleChanged();
-  status(steps.length ? `Removed ${steps.length} step${steps.length > 1 ? 's' : ''}: ${steps.map(s => (s > 0 ? '+' : '') + ft(s) + ' ft').join(', ')}` : 'No elevation steps found');
-};
-$('level').onclick = () => {
-  if (!ride) return;
-  const delta = P[P.length - 1][3] - P[0][3];
-  for (const p of P) p[3] -= delta * p[4] / totalDist;
-  eleChanged();
-  status(`Leveled: removed ${ft(delta)} ft of net drift across the ride`);
-};
-$('resetele').onclick = () => { if (!ride) return; for (let i = 0; i < P.length; i++) P[i][3] = origEle[i]; eleChanged(); status('Elevation reset to original'); };
+      // ---- edits ----
+      $("markA").onclick = () => {
+        if (!ride) return;
+        cropA = indexAt(cur);
+        markChanged();
+        render();
+      };
+      $("markB").onclick = () => {
+        if (!ride) return;
+        const i = indexAt(cur);
+        cropB = stops.includes(i) ? i - 1 : i;
+        markChanged();
+        render();
+      };
+      $("crop").onclick = () => {
+        let i0 = cropA ?? 0;
+        const i1 = cropB ?? P.length - 1,
+          n = P.length;
+        while (
+          i0 < i1 - 1 &&
+          (P[i0 + 1][4] - P[i0][4] < 0.5 || P[i0 + 1][4] - P[i0][4] > 25)
+        )
+          i0++;
+        const t0 = P[i0][0],
+          d0 = P[i0][4];
+        loadRide({
+          ...ride,
+          start: ride.start + t0,
+          pts: P.slice(i0, i1 + 1).map((p) => [
+            p[0] - t0,
+            p[1],
+            p[2],
+            p[3],
+            p[4] - d0,
+            p[5],
+            p[6],
+          ]),
+        });
+        status(
+          `Cropped to ${P.length} of ${n} points, ${(totalDist / 1609.34).toFixed(2)} mi`,
+        );
+      };
+      $("unstop").onclick = () => {
+        const maxStop = +$("maxstop").value || 120,
+          t = P.map((p) => p[0]),
+          d = P.map((p) => p[4]),
+          v = P.map((p) => p[5]),
+          n = P.length;
+        let saved = 0,
+          drift = 0,
+          count = 0,
+          e0 = 0;
+        for (let a = 1; a < n - 1; a++) {
+          if (v[a] >= 1 || a <= e0) continue;
+          let b = a;
+          while (b + 1 < n && v[b + 1] < 1) b++;
+          if (t[b] - t[a] < 3 || t[b] - t[a] > maxStop) {
+            a = b;
+            continue;
+          }
+          let j = a;
+          for (let k = a; k > 0 && t[a] - t[k] <= 20; k--)
+            if (v[k] > v[j]) j = k;
+          const ref = v[j];
+          let s0 = j;
+          while (v[s0] >= 0.8 * ref && s0 < a) s0++;
+          e0 = b + 1;
+          while (e0 < n - 1 && v[e0] < 0.8 * ref && t[e0] - t[b] <= 30) e0++;
+          if (s0 <= 0 || e0 >= n - 1 || ref < 2) {
+            a = b;
+            continue;
+          }
+          const D = haversine([P[s0][1], P[s0][2]], [P[e0][1], P[e0][2]]),
+            old = P[e0][4] - P[s0][4],
+            step = Math.max(1, D / ref / (e0 - s0));
+          for (let k = s0 + 1; k <= e0; k++) {
+            const f = (k - s0) / (e0 - s0);
+            P[k][1] = P[s0][1] + f * (P[e0][1] - P[s0][1]);
+            P[k][2] = P[s0][2] + f * (P[e0][2] - P[s0][2]);
+            P[k][3] = P[s0][3] + f * (P[e0][3] - P[s0][3]);
+            P[k][4] = P[s0][4] + f * D;
+            P[k][5] = ref;
+            P[k][0] = P[s0][0] + (k - s0) * step;
+          }
+          saved += t[e0] - t[s0] - (e0 - s0) * step;
+          drift += old - D;
+          count++;
+          for (let k = e0 + 1; k < n; k++) {
+            P[k][0] = t[k] - saved;
+            P[k][4] = d[k] - drift;
+          }
+          a = e0;
+        }
+        loadRide(ride);
+        status(
+          count
+            ? `Removed ${count} stop${count > 1 ? "s" : ""}, ${fmt(saved)} and ${ft(drift)} ft of GPS drift`
+            : "No stops found",
+        );
+      };
+      $("fixdrift").onclick = () => {
+        if (!ride) return;
+        let offset = 0;
+        const steps = [];
+        for (let i = 1; i < P.length; i++) {
+          const de = origEle[i] - origEle[i - 1],
+            dd = P[i][4] - P[i - 1][4];
+          if (Math.abs(de) > 4 && Math.abs(de) > 0.5 * Math.max(dd, 1)) {
+            offset -= de;
+            steps.push(de);
+          }
+          P[i][3] = origEle[i] + offset;
+        }
+        P[0][3] = origEle[0];
+        eleChanged();
+        status(
+          steps.length
+            ? `Removed ${steps.length} step${steps.length > 1 ? "s" : ""}: ${steps.map((s) => (s > 0 ? "+" : "") + ft(s) + " ft").join(", ")}`
+            : "No elevation steps found",
+        );
+      };
+      $("level").onclick = () => {
+        if (!ride) return;
+        const delta = P[P.length - 1][3] - P[0][3];
+        for (const p of P) p[3] -= (delta * p[4]) / totalDist;
+        eleChanged();
+        status(`Leveled: removed ${ft(delta)} ft of net drift across the ride`);
+      };
+      $("resetele").onclick = () => {
+        if (!ride) return;
+        for (let i = 0; i < P.length; i++) P[i][3] = origEle[i];
+        eleChanged();
+        status("Elevation reset to original");
+      };
 
-// ---- export ----
-const esc = s => s.replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
-const safeName = () => ride.name.replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '_');
-$('export').onclick = () => {
-  if (!ride) return;
-  const hasPower = P.some(p => p[6] > 0), iso = t => new Date((ride.start + t) * 1000).toISOString();
-  let out = `<?xml version="1.0" encoding="UTF-8"?>\n<gpx creator="Ride Editor" version="1.1" xmlns="http://www.topografix.com/GPX/1/1">\n`;
-  if (ride.hasTime) out += `<metadata><time>${iso(0)}</time></metadata>\n`;
-  out += `<trk><name>${esc(ride.name)}</name><type>cycling</type><trkseg>\n`;
-  for (let i = 0; i < P.length; i++) {
-    const p = P[i];
-    out += `<trkpt lat="${p[1]}" lon="${p[2]}"><ele>${p[3].toFixed(1)}</ele>`;
-    if (ride.hasTime) out += `<time>${iso(compT[i])}</time>`;
-    if (hasPower) out += `<extensions><power>${p[6]}</power></extensions>`;
-    out += `</trkpt>\n`;
-  }
-  out += `</trkseg></trk>\n</gpx>\n`;
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([out], { type: 'application/gpx+xml' }));
-  a.download = ($('exportname').value.trim() || safeName() + '_fixed').replace(/\.gpx$/i, '') + '.gpx'; a.click(); URL.revokeObjectURL(a.href);
-  status(`Exported ${P.length} points` + (ride.hasTime ? `, stops compressed, ${fmt(compT[compT.length - 1])} total` : ''));
-};
+      // ---- export ----
+      const esc = (s) =>
+        s.replace(
+          /[<>&"]/g,
+          (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;" })[c],
+        );
+      const safeName = () =>
+        ride.name
+          .replace(/[^\w\- ]+/g, "")
+          .trim()
+          .replace(/\s+/g, "_");
+      $("export").onclick = () => {
+        if (!ride) return;
+        const hasPower = P.some((p) => p[6] > 0),
+          iso = (t) => new Date((ride.start + t) * 1000).toISOString();
+        let out = `<?xml version="1.0" encoding="UTF-8"?>\n<gpx creator="Ride Editor" version="1.1" xmlns="http://www.topografix.com/GPX/1/1">\n`;
+        if (ride.hasTime)
+          out += `<metadata><time>${iso(0)}</time></metadata>\n`;
+        out += `<trk><name>${esc(ride.name)}</name><type>cycling</type><trkseg>\n`;
+        for (let i = 0; i < P.length; i++) {
+          const p = P[i];
+          out += `<trkpt lat="${p[1]}" lon="${p[2]}"><ele>${p[3].toFixed(1)}</ele>`;
+          if (ride.hasTime) out += `<time>${iso(compT[i])}</time>`;
+          if (hasPower)
+            out += `<extensions><power>${p[6]}</power></extensions>`;
+          out += `</trkpt>\n`;
+        }
+        out += `</trkseg></trk>\n</gpx>\n`;
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(
+          new Blob([out], { type: "application/gpx+xml" }),
+        );
+        a.download =
+          ($("exportname").value.trim() || safeName() + "_fixed").replace(
+            /\.gpx$/i,
+            "",
+          ) + ".gpx";
+        a.click();
+        URL.revokeObjectURL(a.href);
+        status(
+          `Exported ${P.length} points` +
+            (ride.hasTime
+              ? `, stops compressed, ${fmt(compT[compT.length - 1])} total`
+              : ""),
+        );
+      };
 
-// ---- parsing ----
-const num = (el, tag) => { const n = el.getElementsByTagName(tag)[0]; return n ? parseFloat(n.textContent) : null; };
-function parseGpx(text, name) {
-  const doc = new DOMParser().parseFromString(text, 'application/xml');
-  const nm = doc.getElementsByTagName('name')[0], tps = [...doc.getElementsByTagName('trkpt'), ...doc.getElementsByTagName('rtept')];
-  const hasTime = tps.filter(tp => tp.getElementsByTagName('time')[0]).length >= 2;
-  const pts = [];
-  for (const tp of tps) {
-    const tn = tp.getElementsByTagName('time')[0];
-    if (hasTime && !tn) continue;
-    const pwr = tp.getElementsByTagName('power')[0] || tp.getElementsByTagName('pwr')[0];
-    pts.push([hasTime ? Math.round(Date.parse(tn.textContent) / 1000) : 0, +tp.getAttribute('lat'), +tp.getAttribute('lon'), num(tp, 'ele') ?? 0, null, null, pwr ? parseInt(pwr.textContent) : null]);
-  }
-  return { name: nm ? nm.textContent : name, pts, hasTime };
-}
-function parseTcx(text, name) {
-  const doc = new DOMParser().parseFromString(text, 'application/xml');
-  const pts = [];
-  for (const tp of doc.getElementsByTagName('Trackpoint')) {
-    const lat = num(tp, 'LatitudeDegrees'), lon = num(tp, 'LongitudeDegrees'), tn = tp.getElementsByTagName('Time')[0];
-    if (lat == null || !tn) continue;
-    const spd = tp.getElementsByTagName('Speed')[0], w = tp.getElementsByTagName('Watts')[0];
-    pts.push([Math.round(Date.parse(tn.textContent) / 1000), lat, lon, num(tp, 'AltitudeMeters') ?? 0, num(tp, 'DistanceMeters'), spd ? parseFloat(spd.textContent) : null, w ? parseInt(w.textContent) : null]);
-  }
-  const notes = doc.getElementsByTagName('Notes')[0];
-  return { name: notes ? notes.textContent : name, pts, hasTime: true };
-}
-async function parseFit(buf, name) {
-  const { default: FitParser } = await import('https://cdn.jsdelivr.net/npm/fit-file-parser@6.1.2/+esm');
-  const data = await new FitParser({ force: true, mode: 'list' }).parseAsync(buf);
-  const pts = [];
-  for (const r of data.records || []) {
-    if (r.position_lat == null || !r.timestamp) continue;
-    pts.push([Math.round(new Date(r.timestamp).getTime() / 1000), r.position_lat, r.position_long, r.enhanced_altitude ?? r.altitude ?? 0, r.distance ?? null, r.enhanced_speed ?? r.speed ?? null, r.power ?? null]);
-  }
-  return { name, pts, hasTime: true };
-}
-async function loadFile(f) {
-  const base = f.name.replace(/\.[^.]+$/, '');
-  try {
-    let r;
-    if (/\.fit$/i.test(f.name)) r = await parseFit(await f.arrayBuffer(), base);
-    else if (/\.tcx$/i.test(f.name)) r = parseTcx(await f.text(), base);
-    else r = parseGpx(await f.text(), base);
-    if (r.pts.length < 2) throw new Error('No track points found');
-    if (r.hasTime) r.pts.sort((a, b) => a[0] - b[0]);
-    r.start = r.pts[0][0];
-    for (const p of r.pts) p[0] -= r.start;
-    loadRide(r);
-    status(`Loaded ${r.pts.length} points from ${f.name}` + (r.hasTime ? '' : ' (route without timestamps)'));
-  } catch (err) { status('Load failed: ' + err.message); }
-}
-$('load').onclick = () => $('file').click();
-$('file').onchange = e => { if (e.target.files[0]) loadFile(e.target.files[0]); e.target.value = ''; };
-addEventListener('dragover', e => e.preventDefault());
-addEventListener('drop', e => { e.preventDefault(); if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]); });
+      // ---- parsing ----
+      const num = (el, tag) => {
+        const n = el.getElementsByTagName(tag)[0];
+        return n ? parseFloat(n.textContent) : null;
+      };
+      function parseGpx(text, name) {
+        const doc = new DOMParser().parseFromString(text, "application/xml");
+        const nm = doc.getElementsByTagName("name")[0],
+          tps = [
+            ...doc.getElementsByTagName("trkpt"),
+            ...doc.getElementsByTagName("rtept"),
+          ];
+        const hasTime =
+          tps.filter((tp) => tp.getElementsByTagName("time")[0]).length >= 2;
+        const pts = [];
+        for (const tp of tps) {
+          const tn = tp.getElementsByTagName("time")[0];
+          if (hasTime && !tn) continue;
+          const pwr =
+            tp.getElementsByTagName("power")[0] ||
+            tp.getElementsByTagName("pwr")[0];
+          pts.push([
+            hasTime ? Math.round(Date.parse(tn.textContent) / 1000) : 0,
+            +tp.getAttribute("lat"),
+            +tp.getAttribute("lon"),
+            num(tp, "ele") ?? 0,
+            null,
+            null,
+            pwr ? parseInt(pwr.textContent) : null,
+          ]);
+        }
+        return { name: nm ? nm.textContent : name, pts, hasTime };
+      }
+      function parseTcx(text, name) {
+        const doc = new DOMParser().parseFromString(text, "application/xml");
+        const pts = [];
+        for (const tp of doc.getElementsByTagName("Trackpoint")) {
+          const lat = num(tp, "LatitudeDegrees"),
+            lon = num(tp, "LongitudeDegrees"),
+            tn = tp.getElementsByTagName("Time")[0];
+          if (lat == null || !tn) continue;
+          const spd = tp.getElementsByTagName("Speed")[0],
+            w = tp.getElementsByTagName("Watts")[0];
+          pts.push([
+            Math.round(Date.parse(tn.textContent) / 1000),
+            lat,
+            lon,
+            num(tp, "AltitudeMeters") ?? 0,
+            num(tp, "DistanceMeters"),
+            spd ? parseFloat(spd.textContent) : null,
+            w ? parseInt(w.textContent) : null,
+          ]);
+        }
+        const notes = doc.getElementsByTagName("Notes")[0];
+        return { name: notes ? notes.textContent : name, pts, hasTime: true };
+      }
+      async function parseFit(buf, name) {
+        const { default: FitParser } =
+          await import("https://cdn.jsdelivr.net/npm/fit-file-parser@6.1.2/+esm");
+        const data = await new FitParser({
+          force: true,
+          mode: "list",
+        }).parseAsync(buf);
+        const pts = [];
+        for (const r of data.records || []) {
+          if (r.position_lat == null || !r.timestamp) continue;
+          pts.push([
+            Math.round(new Date(r.timestamp).getTime() / 1000),
+            r.position_lat,
+            r.position_long,
+            r.enhanced_altitude ?? r.altitude ?? 0,
+            r.distance ?? null,
+            r.enhanced_speed ?? r.speed ?? null,
+            r.power ?? null,
+          ]);
+        }
+        return { name, pts, hasTime: true };
+      }
+      async function loadFile(f) {
+        const base = f.name.replace(/\.[^.]+$/, "");
+        try {
+          let r;
+          if (/\.fit$/i.test(f.name))
+            r = await parseFit(await f.arrayBuffer(), base);
+          else if (/\.tcx$/i.test(f.name)) r = parseTcx(await f.text(), base);
+          else r = parseGpx(await f.text(), base);
+          if (r.pts.length < 2) throw new Error("No track points found");
+          if (r.hasTime) r.pts.sort((a, b) => a[0] - b[0]);
+          r.start = r.pts[0][0];
+          for (const p of r.pts) p[0] -= r.start;
+          loadRide(r);
+          status(
+            `Loaded ${r.pts.length} points from ${f.name}` +
+              (r.hasTime ? "" : " (route without timestamps)"),
+          );
+        } catch (err) {
+          status("Load failed: " + err.message);
+        }
+      }
+      $("load").onclick = () => $("file").click();
+      $("file").onchange = (e) => {
+        if (e.target.files[0]) loadFile(e.target.files[0]);
+        e.target.value = "";
+      };
+      addEventListener("dragover", (e) => e.preventDefault());
+      addEventListener("drop", (e) => {
+        e.preventDefault();
+        if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);
+      });
 
-sizeProfile();
-const q = new URLSearchParams(location.search);
-$('rider').onclick = () => location.href = 'index.html' + (q.has('f') ? '?f=' + encodeURIComponent(q.get('f')) : '');
-if (q.has('f')) fetch(q.get('f').split('/').map(encodeURIComponent).join('/')).then(r => { if (!r.ok) throw new Error(r.statusText); return r.blob(); }).then(b => loadFile(new File([b], q.get('f').split('/').pop()))).catch(err => status('Load failed: ' + err.message));
-</script>
-</body>
+      sizeProfile();
+      const q = new URLSearchParams(location.search);
+      $("rider").onclick = () =>
+        (location.href =
+          "index.html" +
+          (q.has("f") ? "?f=" + encodeURIComponent(q.get("f")) : ""));
+      if (q.has("f"))
+        fetch(q.get("f").split("/").map(encodeURIComponent).join("/"))
+          .then((r) => {
+            if (!r.ok) throw new Error(r.statusText);
+            return r.blob();
+          })
+          .then((b) => loadFile(new File([b], q.get("f").split("/").pop())))
+          .catch((err) => status("Load failed: " + err.message));
+    </script>
+  </body>
 </html>

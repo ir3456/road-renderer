@@ -1,404 +1,1142 @@
 <!doctype html>
 <html lang="en">
-<head>
-<meta charset="utf-8">
-<title>GPX Road Renderer</title>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
-<style>
-  html, body { margin: 0; height: 100%; background: #111; color: #ddd; font: 13px/1.4 -apple-system, system-ui, sans-serif; overflow: hidden; }
-  #app { display: grid; grid-template-rows: 1fr auto; height: 100vh; }
-  #view { grid-column: 1; grid-row: 1; position: relative; background: #000; overflow: hidden; }
-  #road { display: block; width: 100%; height: 100%; }
-  #minimap { position: absolute; right: 10px; top: 10px; width: 180px; height: 180px; cursor: pointer; background: #222; border: 1px solid #444; border-radius: 4px; overflow: hidden; }
-  #map { position: absolute; left: -38px; top: -38px; width: 256px; height: 256px; background: #222; }
-  #mmN { position: absolute; left: 50%; top: 50%; width: 20px; margin: -10px; z-index: 1000; text-align: center; color: #aaa; font-weight: 600; pointer-events: none; text-shadow: 0 0 3px #000; }
-  .mmArrow { width: 0; height: 0; border: 7px solid transparent; border-bottom: 16px solid #f33; margin: -11px 0 0 -7px; filter: drop-shadow(0 0 2px #000); }
-  #hud { position: absolute; left: 10px; top: 10px; background: rgba(0,0,0,.55); padding: 6px 10px; border-radius: 4px; font-variant-numeric: tabular-nums; white-space: pre; line-height: 1.5; }
-  #drop { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #888; font-size: 18px; pointer-events: none; }
-  #menu { position: absolute; inset: 0; background: rgba(0,0,0,.7); display: flex; align-items: center; justify-content: center; font-family: ui-monospace, Menlo, monospace; }
-  #menu[hidden] { display: none; }
-  #ask { position: absolute; inset: 0; background: rgba(0,0,0,.5); display: flex; align-items: center; justify-content: center; font-family: ui-monospace, Menlo, monospace; }
-  #ask[hidden] { display: none; }
-  #askBox { background: #101828; border: 3px solid #8ab4f8; box-shadow: 0 0 0 3px #101828, 0 0 0 5px #eee; padding: 14px 18px; }
-  #askBox p { margin: 0 0 12px; }
-  #menuBox { width: 540px; max-height: 85%; background: #101828; border: 3px solid #8ab4f8; box-shadow: 0 0 0 3px #101828, 0 0 0 5px #eee; display: flex; flex-direction: column; }
-  #tabs { display: flex; border-bottom: 3px solid #8ab4f8; }
-  #tabs button { flex: 1; border: 0; border-radius: 0; background: none; padding: 8px 4px; text-transform: uppercase; letter-spacing: .06em; font-size: 11px; }
-  #tabs button.on { background: #8ab4f8; color: #101828; }
-  #pages { overflow-y: auto; padding: 10px 16px 14px; }
-  .page[hidden] { display: none; }
-  .ride { display: flex; gap: 4px; margin: 4px 0; }
-  .ride button:first-child { flex: 1; display: flex; justify-content: space-between; text-align: left; }
-  .ride span { color: #8ab4f8; }
-  .ride.on button:first-child { border-color: #8ab4f8; }
-  #favSel { width: 100%; margin-bottom: 8px; }
-  #list details { margin-top: 8px; } #list summary { cursor: pointer; color: #999; }
-  #confirm > div { flex-basis: 100%; display: flex; justify-content: space-between; margin-bottom: 6px; }
-  #confirm span { color: #8ab4f8; }
-  #buildLog { white-space: pre; color: #8ab4f8; font-size: 11px; margin-top: 8px; max-height: 120px; overflow-y: auto; }
-  #recent:empty::after { content: 'no rides yet'; color: #888; }
-  #rides:empty::after { content: 'no rides listed (run serve.py)'; color: #888; }
-  .lever { display: grid; grid-template-columns: 1fr 58px; align-items: center; gap: 6px; margin: 3px 0; }
-  .lever label { grid-column: 1 / span 2; display: flex; justify-content: space-between; color: #bbb; }
-  .lever label b { color: #eee; font-weight: 500; font-variant-numeric: tabular-nums; }
-  .lever input[type=range] { grid-column: 1 / span 2; width: 100%; margin: 0; }
-  .lever select { grid-column: 1 / span 2; }
-  #transport { background: #1b1b1b; border-top: 1px solid #333; padding: 8px 12px; display: flex; flex-direction: column; gap: 6px; }
-  .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-  #profile { width: 100%; height: 70px; display: block; cursor: crosshair; background: #151515; border-radius: 3px; }
-  #scrub { flex: 1; margin: 0; }
-  button, select, input[type=number] { background: #2a2a2a; color: #eee; border: 1px solid #444; border-radius: 4px; padding: 4px 10px; font: inherit; }
-  button { cursor: pointer; } button:hover { background: #363636; }
-  input[type=number] { width: 60px; }
-  .stat { font-variant-numeric: tabular-nums; color: #aaa; }
-  .stat b { color: #8ab4f8; font-weight: 600; }
-  #kstatus { color: #8ab4f8; }
-  kbd { background: #2a2a2a; border: 1px solid #444; border-radius: 3px; padding: 0 4px; font-size: 11px; }
-</style>
-</head>
-<body>
-<div id="app">
-  <div id="view">
-    <canvas id="road"></canvas>
-    <div id="hud"></div>
-    <div id="minimap"><div id="map"></div><div id="mmN">N</div></div>
-    <div id="drop">Press Esc or click the road for the menu, or drop a GPX (plus .scene.json) here</div>
-    <div id="ask" hidden><div id="askBox"><p id="askText"></p><div class="row" id="askBtns"></div></div></div>
-    <div id="menu" hidden><div id="menuBox"><div id="tabs"></div><div id="pages">
-      <div class="page" id="ridePage">
-        <div id="list"><select id="favSel"></select><div id="recent"></div><details><summary>All rides</summary><div id="rides"></div></details></div>
-        <div id="confirm" class="row" hidden></div>
-        <div id="buildLog"></div>
-        <button id="stopBtn" hidden>Stop build</button>
-        <div class="row" style="margin-top:10px">
-          <input type="file" id="file" accept=".gpx,.json" multiple style="display:none">
-          <button id="loadBtn">Load file…</button>
-          <button id="resetBtn" title="Reset all levers to defaults">Reset levers</button>
-          <button id="closeBtn">Resume</button>
-        </div>
-        <div style="color:#999;margin-top:12px"><kbd>esc</kbd> menu &nbsp; <kbd>space</kbd> play/pause &nbsp; <kbd>←</kbd><kbd>→</kbd> step 50 ft (shift: 500 ft) &nbsp; <kbd>↑</kbd><kbd>↓</kbd> speed &nbsp; <kbd>home</kbd> start</div>
-      </div>
-    </div></div></div>
-  </div>
-  <div id="transport">
-    <canvas id="profile"></canvas>
-    <div class="row">
-      <button id="menuBtn">Menu</button>
-      <button id="editorBtn" title="Open this ride in the editor">Editor</button>
-      <button id="playBtn">Play</button>
-      <button id="rideBtn">Start ride</button>
-      <button id="finishBtn" hidden>Finish ride</button>
-      <label class="stat" title="Restart from the top when the route ends instead of asking"><input type="checkbox" id="repeat"> Repeat</label>
-      <select id="mode">
-        <option value="const">Constant speed</option>
-        <option value="gpx" disabled>Recorded speed</option>
-        <option value="live">Live trainer</option>
-      </select>
-      <label class="stat">mph <input type="number" id="speed" value="20" min="1" max="200" step="1"></label>
-      <label class="stat">× <input type="number" id="mult" value="1" min="0.1" max="50" step="0.5" title="Time multiplier for recorded speed"></label>
-      <label class="stat"><input type="checkbox" id="ghostck" checked> Ghost <input type="number" id="ghostPct" value="100" min="10" max="300" step="5" title="Ghost speed as a percent of the recording">%</label>
-      <button id="snapBtn" title="Move the ghost to your position (g)">Snap ghost</button>
-      <button id="connectBtn">Connect trainer</button><span class="stat" id="kstatus"></span>
-      <input type="range" id="scrub" min="0" max="1000" value="0">
-      <span class="stat" id="pos"></span>
-    </div>
-  </div>
-</div>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-<script type="module">
-import { parseGpx, buildRoad as buildRoadModel, toLatLon, smooth } from './road.js';
-import { render } from './render.js';
-import { loadSprites } from './sprites.js';
-import { placeholderScene, applyScene, warnSigns } from './scene.js';
-import { makeGhost } from './ghost.js';
-import * as kickr from './kickr.js';
-import { startRide, record, toGpx } from './ride.js';
-import { P, initLevers, syncLeverUI, saveLevers, resetLevers } from './levers.js';
-import { createMinimap } from './minimap.js';
-import { createProfile } from './profile.js';
-
-const $ = id => document.getElementById(id);
-const canvas = $('road'), menu = $('menu'), listEl = $('list'), confirmEl = $('confirm'), buildLog = $('buildLog'), stopBtn = $('stopBtn');
-const playBtn = $('playBtn'), rideBtn = $('rideBtn'), finishBtn = $('finishBtn'), modeSel = $('mode'), speedIn = $('speed'), multIn = $('mult');
-const scrub = $('scrub'), posEl = $('pos'), ghostCk = $('ghostck'), ghostPct = $('ghostPct'), kstatus = $('kstatus'), connectBtn = $('connectBtn');
-const askEl = $('ask'), askText = $('askText'), askBtns = $('askBtns');
-const MI = 1609.344, MPH = MI / 3600, FT = 3.28084;
-const fmt = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
-
-// ---------- state ----------
-let track = null, road = null, scene = null, ghost = null, ridePath = null;
-let theme = null, assets = null;
-let playerZ = 0, playing = false, rideT = 0, ghostT = 0, ghostZ = null, clock = 0, ridden = 0, laps = 0;
-let ride = null, gradeNow = 0, lastGradeSent = null, liveV = 0;
-const minimap = createMinimap($('map'), $('mmN'));
-const profile = createProfile($('profile'), seek);
-
-// ---------- menu ----------
-const pages = [{ name: 'Ride', page: $('ridePage') }, ...initLevers($('pages'), lv => { if (lv.rebuild) buildRoad(); if (lv.key === 'theme') loadTheme(); })];
-for (const t of pages) {
-  const b = document.createElement('button'); b.textContent = t.name; $('tabs').appendChild(b);
-  b.onclick = () => { for (const u of pages) { u.page.hidden = u !== t; u.btn.classList.toggle('on', u === t); } };
-  t.btn = b;
-}
-pages[0].btn.click();
-$('resetBtn').onclick = () => { resetLevers(); buildRoad(); loadTheme(); };
-let buildTimer = null, buildTarget = null;
-const stored = k => { try { return JSON.parse(localStorage.getItem(k)) || []; } catch (e) { return []; } };
-const store = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
-const isFav = p => stored('favRides').includes(p);
-function toggleFav(p) { const f = stored('favRides'); store('favRides', f.includes(p) ? f.filter(x => x !== p) : [...f, p]); listRides(); }
-function starBtn(p) { const b = document.createElement('button'); b.textContent = isFav(p) ? '★' : '☆'; b.title = 'Favorite'; b.onclick = () => { toggleFav(p); b.textContent = isFav(p) ? '★' : '☆'; }; return b; }
-function listRides() {
-  fetch('rides.json').then(r => r.json()).then(list => {
-    const by = p => list.find(r => r.path === p), favs = stored('favRides').map(by).filter(Boolean);
-    $('favSel').innerHTML = `<option value="">${favs.length ? 'Favorites…' : 'No favorites yet (★ a ride)'}</option>` + favs.map(r => `<option>${r.path}</option>`).join('');
-    $('favSel').onchange = e => { if (e.target.value) pick(by(e.target.value)); e.target.value = ''; };
-    for (const [el, rs] of [[$('recent'), stored('recentRides').map(by).filter(Boolean).slice(0, 5)], [$('rides'), list]]) {
-      el.innerHTML = '';
-      for (const r of rs) {
-        const d = document.createElement('div'), b = document.createElement('button'); d.className = 'ride' + (r.path === ridePath ? ' on' : '');
-        b.innerHTML = `${r.path}<span>${r.scene ? 'scene' : 'no scene'}</span>`; b.onclick = () => pick(r); d.append(b, starBtn(r.path)); el.appendChild(d);
+  <head>
+    <meta charset="utf-8" />
+    <title>GPX Road Renderer</title>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"
+    />
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: #111;
+        color: #ddd;
+        font:
+          13px/1.4 -apple-system,
+          system-ui,
+          sans-serif;
+        overflow: hidden;
       }
-    }
-  }).catch(() => {});
-}
-async function pick(r) {
-  confirmEl.hidden = false; listEl.hidden = true;
-  confirmEl.innerHTML = `<div>${r.path}<span>${r.scene ? 'scene built ✓' : 'no scene data yet'}</span></div><div id="stats">reading…</div>`;
-  const btn = (t, fn) => { const b = document.createElement('button'); b.textContent = t; b.onclick = () => { confirmEl.hidden = true; listEl.hidden = false; fn(); }; confirmEl.appendChild(b); };
-  btn('Ride', () => loadUrl(r.path));
-  if (r.scene) btn('Ride without scene', () => loadUrl(r.path, false));
-  btn(r.scene ? 'Rebuild scene' : 'Build scene', () => { buildTarget = r.path; fetch('build?f=' + encodeURIComponent(r.path), { method: 'POST' }).then(pollBuild); });
-  btn('Back', () => {}); confirmEl.appendChild(starBtn(r.path));
-  try { $('stats').textContent = rideStats(parseGpx(await (await fetch(enc(r.path))).text())); } catch (e) { $('stats').textContent = 'unreadable: ' + e.message; }
-}
-function rideStats(t) {
-  const sm = smooth(t.ele, Math.round(50 * t.ele.length / t.total));
-  let gain = 0; for (let i = 1; i < sm.length; i++) gain += Math.max(0, sm[i] - sm[i - 1]);
-  const dur = t.t ? t.t[t.t.length - 1] - t.t[0] : null;
-  return `${(t.total / 1609.344).toFixed(1)} mi · ${(gain * 3.28084).toFixed(0)} ft gain · ${dur ? `${Math.floor(dur / 3600)}:${String(Math.floor(dur % 3600 / 60)).padStart(2, '0')}` : 'no timestamps'}`;
-}
-function pollBuild() {
-  clearTimeout(buildTimer);
-  fetch('build.json').then(r => r.json()).then(b => {
-    buildLog.textContent = b.path ? `${b.path}\n${b.log.join('\n')}` : ''; stopBtn.hidden = !b.running;
-    if (b.running) buildTimer = setTimeout(pollBuild, 1000);
-    else if (buildTarget) { const t = buildTarget; buildTarget = null; listRides(); if (b.path === t) pick({ path: t, scene: b.code === 0 }); }
-  }).catch(() => {});
-}
-function showMenu(on) {
-  menu.hidden = !on;
-  if (on) { listRides(); pollBuild(); }
-}
-function ask(text, choices) {
-  if (!askEl.hidden) return Promise.resolve(null);
-  askEl.hidden = false; askText.textContent = text; askBtns.innerHTML = '';
-  return new Promise(res => { for (const c of choices) { const b = document.createElement('button'); b.textContent = c; b.onclick = () => { askEl.hidden = true; res(c); }; askBtns.appendChild(b); } });
-}
-const notice = msg => { const d = $('drop'); d.style.display = msg ? '' : 'none'; d.textContent = msg || ''; };
+      #app {
+        display: grid;
+        grid-template-rows: 1fr auto;
+        height: 100vh;
+      }
+      #view {
+        grid-column: 1;
+        grid-row: 1;
+        position: relative;
+        background: #000;
+        overflow: hidden;
+      }
+      #road {
+        display: block;
+        width: 100%;
+        height: 100%;
+      }
+      #minimap {
+        position: absolute;
+        right: 10px;
+        top: 10px;
+        width: 180px;
+        height: 180px;
+        cursor: pointer;
+        background: #222;
+        border: 1px solid #444;
+        border-radius: 4px;
+        overflow: hidden;
+      }
+      #map {
+        position: absolute;
+        left: -38px;
+        top: -38px;
+        width: 256px;
+        height: 256px;
+        background: #222;
+      }
+      #mmN {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: 20px;
+        margin: -10px;
+        z-index: 1000;
+        text-align: center;
+        color: #aaa;
+        font-weight: 600;
+        pointer-events: none;
+        text-shadow: 0 0 3px #000;
+      }
+      .mmArrow {
+        width: 0;
+        height: 0;
+        border: 7px solid transparent;
+        border-bottom: 16px solid #f33;
+        margin: -11px 0 0 -7px;
+        filter: drop-shadow(0 0 2px #000);
+      }
+      #hud {
+        position: absolute;
+        left: 10px;
+        top: 10px;
+        background: rgba(0, 0, 0, 0.55);
+        padding: 6px 10px;
+        border-radius: 4px;
+        font-variant-numeric: tabular-nums;
+        white-space: pre;
+        line-height: 1.5;
+      }
+      #drop {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #888;
+        font-size: 18px;
+        pointer-events: none;
+      }
+      #menu {
+        position: absolute;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.7);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: ui-monospace, Menlo, monospace;
+      }
+      #menu[hidden] {
+        display: none;
+      }
+      #ask {
+        position: absolute;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: ui-monospace, Menlo, monospace;
+      }
+      #ask[hidden] {
+        display: none;
+      }
+      #askBox {
+        background: #101828;
+        border: 3px solid #8ab4f8;
+        box-shadow:
+          0 0 0 3px #101828,
+          0 0 0 5px #eee;
+        padding: 14px 18px;
+      }
+      #askBox p {
+        margin: 0 0 12px;
+      }
+      #menuBox {
+        width: 540px;
+        max-height: 85%;
+        background: #101828;
+        border: 3px solid #8ab4f8;
+        box-shadow:
+          0 0 0 3px #101828,
+          0 0 0 5px #eee;
+        display: flex;
+        flex-direction: column;
+      }
+      #tabs {
+        display: flex;
+        border-bottom: 3px solid #8ab4f8;
+      }
+      #tabs button {
+        flex: 1;
+        border: 0;
+        border-radius: 0;
+        background: none;
+        padding: 8px 4px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        font-size: 11px;
+      }
+      #tabs button.on {
+        background: #8ab4f8;
+        color: #101828;
+      }
+      #pages {
+        overflow-y: auto;
+        padding: 10px 16px 14px;
+      }
+      .page[hidden] {
+        display: none;
+      }
+      .ride {
+        display: flex;
+        gap: 4px;
+        margin: 4px 0;
+      }
+      .ride button:first-child {
+        flex: 1;
+        display: flex;
+        justify-content: space-between;
+        text-align: left;
+      }
+      .ride span {
+        color: #8ab4f8;
+      }
+      .ride.on button:first-child {
+        border-color: #8ab4f8;
+      }
+      #favSel {
+        width: 100%;
+        margin-bottom: 8px;
+      }
+      #list details {
+        margin-top: 8px;
+      }
+      #list summary {
+        cursor: pointer;
+        color: #999;
+      }
+      #confirm > div {
+        flex-basis: 100%;
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 6px;
+      }
+      #confirm span {
+        color: #8ab4f8;
+      }
+      #buildLog {
+        white-space: pre;
+        color: #8ab4f8;
+        font-size: 11px;
+        margin-top: 8px;
+        max-height: 120px;
+        overflow-y: auto;
+      }
+      #recent:empty::after {
+        content: "no rides yet";
+        color: #888;
+      }
+      #rides:empty::after {
+        content: "no rides listed (run serve.py)";
+        color: #888;
+      }
+      .lever {
+        display: grid;
+        grid-template-columns: 1fr 58px;
+        align-items: center;
+        gap: 6px;
+        margin: 3px 0;
+      }
+      .lever label {
+        grid-column: 1 / span 2;
+        display: flex;
+        justify-content: space-between;
+        color: #bbb;
+      }
+      .lever label b {
+        color: #eee;
+        font-weight: 500;
+        font-variant-numeric: tabular-nums;
+      }
+      .lever input[type="range"] {
+        grid-column: 1 / span 2;
+        width: 100%;
+        margin: 0;
+      }
+      .lever select {
+        grid-column: 1 / span 2;
+      }
+      #transport {
+        background: #1b1b1b;
+        border-top: 1px solid #333;
+        padding: 8px 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      #profile {
+        width: 100%;
+        height: 70px;
+        display: block;
+        cursor: crosshair;
+        background: #151515;
+        border-radius: 3px;
+      }
+      #scrub {
+        flex: 1;
+        margin: 0;
+      }
+      button,
+      select,
+      input[type="number"] {
+        background: #2a2a2a;
+        color: #eee;
+        border: 1px solid #444;
+        border-radius: 4px;
+        padding: 4px 10px;
+        font: inherit;
+      }
+      button {
+        cursor: pointer;
+      }
+      button:hover {
+        background: #363636;
+      }
+      input[type="number"] {
+        width: 60px;
+      }
+      .stat {
+        font-variant-numeric: tabular-nums;
+        color: #aaa;
+      }
+      .stat b {
+        color: #8ab4f8;
+        font-weight: 600;
+      }
+      #kstatus {
+        color: #8ab4f8;
+      }
+      kbd {
+        background: #2a2a2a;
+        border: 1px solid #444;
+        border-radius: 3px;
+        padding: 0 4px;
+        font-size: 11px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <div id="view">
+        <canvas id="road"></canvas>
+        <div id="hud"></div>
+        <div id="minimap">
+          <div id="map"></div>
+          <div id="mmN">N</div>
+        </div>
+        <div id="drop">
+          Press Esc or click the road for the menu, or drop a GPX (plus
+          .scene.json) here
+        </div>
+        <div id="ask" hidden>
+          <div id="askBox">
+            <p id="askText"></p>
+            <div class="row" id="askBtns"></div>
+          </div>
+        </div>
+        <div id="menu" hidden>
+          <div id="menuBox">
+            <div id="tabs"></div>
+            <div id="pages">
+              <div class="page" id="ridePage">
+                <div id="list">
+                  <select id="favSel"></select>
+                  <div id="recent"></div>
+                  <details>
+                    <summary>All rides</summary>
+                    <div id="rides"></div>
+                  </details>
+                </div>
+                <div id="confirm" class="row" hidden></div>
+                <div id="buildLog"></div>
+                <button id="stopBtn" hidden>Stop build</button>
+                <div class="row" style="margin-top: 10px">
+                  <input
+                    type="file"
+                    id="file"
+                    accept=".gpx,.json"
+                    multiple
+                    style="display: none"
+                  />
+                  <button id="loadBtn">Load file…</button>
+                  <button id="resetBtn" title="Reset all levers to defaults">
+                    Reset levers
+                  </button>
+                  <button id="closeBtn">Resume</button>
+                </div>
+                <div style="color: #999; margin-top: 12px">
+                  <kbd>esc</kbd> menu &nbsp; <kbd>space</kbd> play/pause &nbsp;
+                  <kbd>←</kbd><kbd>→</kbd> step 50 ft (shift: 500 ft) &nbsp;
+                  <kbd>↑</kbd><kbd>↓</kbd> speed &nbsp; <kbd>home</kbd> start
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div id="transport">
+        <canvas id="profile"></canvas>
+        <div class="row">
+          <button id="menuBtn">Menu</button>
+          <button id="editorBtn" title="Open this ride in the editor">
+            Editor
+          </button>
+          <button id="playBtn">Play</button>
+          <button id="rideBtn">Start ride</button>
+          <button id="finishBtn" hidden>Finish ride</button>
+          <label
+            class="stat"
+            title="Restart from the top when the route ends instead of asking"
+            ><input type="checkbox" id="repeat" /> Repeat</label
+          >
+          <select id="mode">
+            <option value="const">Constant speed</option>
+            <option value="gpx" disabled>Recorded speed</option>
+            <option value="live">Live trainer</option>
+          </select>
+          <label class="stat"
+            >mph
+            <input
+              type="number"
+              id="speed"
+              value="20"
+              min="1"
+              max="200"
+              step="1"
+          /></label>
+          <label class="stat"
+            >×
+            <input
+              type="number"
+              id="mult"
+              value="1"
+              min="0.1"
+              max="50"
+              step="0.5"
+              title="Time multiplier for recorded speed"
+          /></label>
+          <label class="stat"
+            ><input type="checkbox" id="ghostck" checked /> Ghost
+            <input
+              type="number"
+              id="ghostPct"
+              value="100"
+              min="10"
+              max="300"
+              step="5"
+              title="Ghost speed as a percent of the recording"
+            />%</label
+          >
+          <button id="snapBtn" title="Move the ghost to your position (g)">
+            Snap ghost
+          </button>
+          <button id="connectBtn">Connect trainer</button
+          ><span class="stat" id="kstatus"></span>
+          <input type="range" id="scrub" min="0" max="1000" value="0" />
+          <span class="stat" id="pos"></span>
+        </div>
+      </div>
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+    <script type="module">
+      import {
+        parseGpx,
+        buildRoad as buildRoadModel,
+        toLatLon,
+        smooth,
+      } from "./road.js";
+      import { render } from "./render.js";
+      import { loadSprites } from "./sprites.js";
+      import { placeholderScene, applyScene, warnSigns } from "./scene.js";
+      import { makeGhost } from "./ghost.js";
+      import * as kickr from "./kickr.js";
+      import { startRide, record, toGpx } from "./ride.js";
+      import {
+        P,
+        initLevers,
+        syncLeverUI,
+        saveLevers,
+        resetLevers,
+      } from "./levers.js";
+      import { createMinimap } from "./minimap.js";
+      import { createProfile } from "./profile.js";
 
-async function loadTheme() {
-  const t = (await import(`./theme/${P.theme}.js`)).default;
-  assets = t.sprites ? await loadSprites(t.sprites) : null;
-  theme = t;
-}
+      const $ = (id) => document.getElementById(id);
+      const canvas = $("road"),
+        menu = $("menu"),
+        listEl = $("list"),
+        confirmEl = $("confirm"),
+        buildLog = $("buildLog"),
+        stopBtn = $("stopBtn");
+      const playBtn = $("playBtn"),
+        rideBtn = $("rideBtn"),
+        finishBtn = $("finishBtn"),
+        modeSel = $("mode"),
+        speedIn = $("speed"),
+        multIn = $("mult");
+      const scrub = $("scrub"),
+        posEl = $("pos"),
+        ghostCk = $("ghostck"),
+        ghostPct = $("ghostPct"),
+        kstatus = $("kstatus"),
+        connectBtn = $("connectBtn");
+      const askEl = $("ask"),
+        askText = $("askText"),
+        askBtns = $("askBtns");
+      const MI = 1609.344,
+        MPH = MI / 3600,
+        FT = 3.28084;
+      const fmt = (s) =>
+        `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 
-// ---------- track + scene ----------
-function buildRoad() {
-  if (!track) return;
-  road = buildRoadModel(track, P);
-  if (scene) applyScene(road, scene, P); else placeholderScene(road, P);
-  if (P.warnSigns === 'on') warnSigns(road);
-  playerZ = Math.min(playerZ, road.total - 1);
-  profile.draw(road);
-}
-function loadText(text) {
-  let t;
-  try { t = parseGpx(text); } catch (e) { notice('Could not parse GPX: ' + e.message); return false; }
-  endRide();
-  track = t; scene = null; ghost = makeGhost(track);
-  playerZ = 0; rideT = ghostT = clock = ridden = laps = 0; setPlaying(false);
-  modeSel.querySelector('[value=gpx]').disabled = !track.t;
-  if (!track.t && modeSel.value === 'gpx') modeSel.value = 'const';
-  notice(null);
-  buildRoad();
-  minimap.build(track);
-  return true;
-}
-function loadSceneText(text) {
-  try { scene = JSON.parse(text); } catch (e) { notice('Could not parse scene JSON'); return; }
-  buildRoad();
-}
-const enc = f => f.split('/').map(encodeURIComponent).join('/');
-async function loadFiles(files) {
-  const list = [...files], gpx = list.filter(f => /\.gpx$/i.test(f.name)), json = list.filter(f => /\.json$/i.test(f.name));
-  if (gpx.length && !json.length) {
-    const up = await fetch('upload?f=' + encodeURIComponent('clips/' + gpx[0].name), { method: 'POST', body: await gpx[0].text() }).then(r => r.ok && r.json()).catch(() => null);
-    const entry = up && (await (await fetch('rides.json')).json()).find(x => x.path === up.path);
-    if (entry) { listRides(); return pick(entry); }
-  }
-  if (!await settleRide()) return;
-  for (const f of gpx) loadText(await f.text());
-  for (const f of json) loadSceneText(await f.text());
-  ridePath = null; history.replaceState(null, '', location.pathname); showMenu(false);
-}
-async function loadUrl(f, withScene = true) {
-  if (!await settleRide()) return;
-  try {
-    const r = await fetch(enc(f));
-    if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
-    if (!loadText(await r.text())) return;
-    const s = withScene ? await fetch(enc(f.replace(/\.gpx$/i, '') + '.scene.json')).catch(() => null) : null;
-    if (s && s.ok) loadSceneText(await s.text());
-  } catch (e) { notice(`Could not load ${f}: ${e.message}`); return; }
-  ridePath = f;
-  try { localStorage.setItem('lastRide', f); } catch (e) {}
-  store('recentRides', [f, ...stored('recentRides').filter(x => x !== f)].slice(0, 5));
-  history.replaceState(null, '', '?f=' + encodeURIComponent(f)); showMenu(false);
-}
+      // ---------- state ----------
+      let track = null,
+        road = null,
+        scene = null,
+        ghost = null,
+        ridePath = null;
+      let theme = null,
+        assets = null;
+      let playerZ = 0,
+        playing = false,
+        rideT = 0,
+        ghostT = 0,
+        ghostZ = null,
+        clock = 0,
+        ridden = 0,
+        laps = 0;
+      let ride = null,
+        gradeNow = 0,
+        lastGradeSent = null,
+        liveV = 0;
+      const minimap = createMinimap($("map"), $("mmN"));
+      const profile = createProfile($("profile"), seek);
 
-// ---------- trainer model ----------
-const CASSETTE = { '11-28': [11, 12, 13, 14, 15, 17, 19, 21, 24, 28], '11-32': [11, 12, 13, 14, 16, 18, 20, 22, 25, 28, 32], '11-34': [11, 13, 15, 17, 19, 21, 23, 25, 27, 30, 34], '12-25': [12, 13, 14, 15, 16, 17, 18, 19, 21, 23, 25] };
-const gearK = () => (P.physRing / P.physCog) / (P.virtRing / P.virtCog);
-function shift(dir) {
-  const cogs = CASSETTE[P.cassette], next = dir > 0 ? [...cogs].reverse().find(c => c < P.virtCog) : cogs.find(c => c > P.virtCog);
-  if (next) { P.virtCog = next; syncLeverUI(); saveLevers(); }
-}
-function recordedSpeed(z) {
-  const i = Math.min(road.n - 2, Math.floor(z / road.L)), dt = road.t[i + 1] - road.t[i];
-  return dt > 0 ? road.L / dt : 0;
-}
-function speedNow() {
-  if (modeSel.value === 'live') return liveV;
-  if (modeSel.value === 'gpx' && road.t) return recordedSpeed(playerZ) * +multIn.value;
-  return +speedIn.value * MPH;
-}
+      // ---------- menu ----------
+      const pages = [
+        { name: "Ride", page: $("ridePage") },
+        ...initLevers($("pages"), (lv) => {
+          if (lv.rebuild) buildRoad();
+          if (lv.key === "theme") loadTheme();
+        }),
+      ];
+      for (const t of pages) {
+        const b = document.createElement("button");
+        b.textContent = t.name;
+        $("tabs").appendChild(b);
+        b.onclick = () => {
+          for (const u of pages) {
+            u.page.hidden = u !== t;
+            u.btn.classList.toggle("on", u === t);
+          }
+        };
+        t.btn = b;
+      }
+      pages[0].btn.click();
+      $("resetBtn").onclick = () => {
+        resetLevers();
+        buildRoad();
+        loadTheme();
+      };
+      let buildTimer = null,
+        buildTarget = null;
+      const stored = (k) => {
+        try {
+          return JSON.parse(localStorage.getItem(k)) || [];
+        } catch (e) {
+          return [];
+        }
+      };
+      const store = (k, v) => {
+        try {
+          localStorage.setItem(k, JSON.stringify(v));
+        } catch (e) {}
+      };
+      const isFav = (p) => stored("favRides").includes(p);
+      function toggleFav(p) {
+        const f = stored("favRides");
+        store("favRides", f.includes(p) ? f.filter((x) => x !== p) : [...f, p]);
+        listRides();
+      }
+      function starBtn(p) {
+        const b = document.createElement("button");
+        b.textContent = isFav(p) ? "★" : "☆";
+        b.title = "Favorite";
+        b.onclick = () => {
+          toggleFav(p);
+          b.textContent = isFav(p) ? "★" : "☆";
+        };
+        return b;
+      }
+      function listRides() {
+        fetch("rides.json")
+          .then((r) => r.json())
+          .then((list) => {
+            const by = (p) => list.find((r) => r.path === p),
+              favs = stored("favRides").map(by).filter(Boolean);
+            $("favSel").innerHTML =
+              `<option value="">${favs.length ? "Favorites…" : "No favorites yet (★ a ride)"}</option>` +
+              favs.map((r) => `<option>${r.path}</option>`).join("");
+            $("favSel").onchange = (e) => {
+              if (e.target.value) pick(by(e.target.value));
+              e.target.value = "";
+            };
+            for (const [el, rs] of [
+              [
+                $("recent"),
+                stored("recentRides").map(by).filter(Boolean).slice(0, 5),
+              ],
+              [$("rides"), list],
+            ]) {
+              el.innerHTML = "";
+              for (const r of rs) {
+                const d = document.createElement("div"),
+                  b = document.createElement("button");
+                d.className = "ride" + (r.path === ridePath ? " on" : "");
+                b.innerHTML = `${r.path}<span>${r.scene ? "scene" : "no scene"}</span>`;
+                b.onclick = () => pick(r);
+                d.append(b, starBtn(r.path));
+                el.appendChild(d);
+              }
+            }
+          })
+          .catch(() => {});
+      }
+      async function pick(r) {
+        confirmEl.hidden = false;
+        listEl.hidden = true;
+        confirmEl.innerHTML = `<div>${r.path}<span>${r.scene ? "scene built ✓" : "no scene data yet"}</span></div><div id="stats">reading…</div>`;
+        const btn = (t, fn) => {
+          const b = document.createElement("button");
+          b.textContent = t;
+          b.onclick = () => {
+            confirmEl.hidden = true;
+            listEl.hidden = false;
+            fn();
+          };
+          confirmEl.appendChild(b);
+        };
+        btn("Ride", () => loadUrl(r.path));
+        if (r.scene) btn("Ride without scene", () => loadUrl(r.path, false));
+        btn(r.scene ? "Rebuild scene" : "Build scene", () => {
+          buildTarget = r.path;
+          fetch("build?f=" + encodeURIComponent(r.path), {
+            method: "POST",
+          }).then(pollBuild);
+        });
+        btn("Back", () => {});
+        confirmEl.appendChild(starBtn(r.path));
+        try {
+          $("stats").textContent = rideStats(
+            parseGpx(await (await fetch(enc(r.path))).text()),
+          );
+        } catch (e) {
+          $("stats").textContent = "unreadable: " + e.message;
+        }
+      }
+      function rideStats(t) {
+        const sm = smooth(t.ele, Math.round((50 * t.ele.length) / t.total));
+        let gain = 0;
+        for (let i = 1; i < sm.length; i++)
+          gain += Math.max(0, sm[i] - sm[i - 1]);
+        const dur = t.t ? t.t[t.t.length - 1] - t.t[0] : null;
+        return `${(t.total / 1609.344).toFixed(1)} mi · ${(gain * 3.28084).toFixed(0)} ft gain · ${dur ? `${Math.floor(dur / 3600)}:${String(Math.floor((dur % 3600) / 60)).padStart(2, "0")}` : "no timestamps"}`;
+      }
+      function pollBuild() {
+        clearTimeout(buildTimer);
+        fetch("build.json")
+          .then((r) => r.json())
+          .then((b) => {
+            buildLog.textContent = b.path
+              ? `${b.path}\n${b.log.join("\n")}`
+              : "";
+            stopBtn.hidden = !b.running;
+            if (b.running) buildTimer = setTimeout(pollBuild, 1000);
+            else if (buildTarget) {
+              const t = buildTarget;
+              buildTarget = null;
+              listRides();
+              if (b.path === t) pick({ path: t, scene: b.code === 0 });
+            }
+          })
+          .catch(() => {});
+      }
+      function showMenu(on) {
+        menu.hidden = !on;
+        if (on) {
+          listRides();
+          pollBuild();
+        }
+      }
+      function ask(text, choices) {
+        if (!askEl.hidden) return Promise.resolve(null);
+        askEl.hidden = false;
+        askText.textContent = text;
+        askBtns.innerHTML = "";
+        return new Promise((res) => {
+          for (const c of choices) {
+            const b = document.createElement("button");
+            b.textContent = c;
+            b.onclick = () => {
+              askEl.hidden = true;
+              res(c);
+            };
+            askBtns.appendChild(b);
+          }
+        });
+      }
+      const notice = (msg) => {
+        const d = $("drop");
+        d.style.display = msg ? "" : "none";
+        d.textContent = msg || "";
+      };
 
-// ---------- transport + ride ----------
-function roadXY(z) { const i = Math.min(road.n - 2, Math.floor(z / road.L)), f = z / road.L - i; return [road.x[i] + f * (road.x[i + 1] - road.x[i]), road.y[i] + f * (road.y[i + 1] - road.y[i])]; }
-function setZ(z) { playerZ = Math.max(0, Math.min(road.total - 1, z)); }
-function seek(z) {
-  if (ride) { if (!playing) ask(`Move to ${(z / MI).toFixed(2)} mi?`, ['Move', 'Cancel']).then(a => a === 'Move' && seekNow(z)); return; }
-  seekNow(z);
-}
-function seekNow(z) { setZ(z); if (ghost) rideT = ghostT = ghost.timeAt(playerZ); }
-function snapGhost() { if (ghost) ghostT = ghost.timeAt(playerZ); }
-function setPlaying(on) { playing = on; playBtn.textContent = on ? 'Pause' : ride ? 'Resume' : 'Play'; }
-function togglePlay() { if (road) setPlaying(!playing); }
-async function settleRide() {
-  if (!ride) return true;
-  const a = await ask('A ride is in progress.', ['Finish & export', 'Discard', 'Cancel']);
-  if (a === 'Finish & export') await finishRide(); else if (a === 'Discard') endRide();
-  return !ride;
-}
-function endRide() { ride = null; rideBtn.hidden = false; finishBtn.hidden = true; modeSel.disabled = false; setPlaying(false); }
-async function finishRide() {
-  const posAt = z => { const [lat, lon] = toLatLon(track, ...roadXY(z)); return { lat, lon, ele: road.ele[Math.min(road.n - 1, Math.floor(z / road.L))] }; };
-  const gpx = toGpx(ride, track.name || 'Ride', posAt), d = new Date(ride.startedAt), pad = n => String(n).padStart(2, '0');
-  const name = `${(track.name || 'ride').replace(/[^\w\-]+/g, '_')}-${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}.gpx`;
-  endRide();
-  await fetch('upload?f=' + encodeURIComponent('rides/' + name), { method: 'POST', body: gpx }).catch(() => {});
-  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([gpx], { type: 'application/gpx+xml' })); a.download = name; a.click(); URL.revokeObjectURL(a.href);
-}
-async function rideDone() {
-  setPlaying(false);
-  const a = await ask('Route complete.', ['Restart', 'Join elsewhere', 'Finish']);
-  if (a === 'Restart') { seekNow(0); setPlaying(true); } else if (a === 'Finish') finishRide();
-}
-playBtn.onclick = togglePlay;
-scrub.oninput = () => { if (road && !ride) seek(scrub.value / 1000 * road.total); };
-scrub.onchange = () => { if (road && ride) seek(scrub.value / 1000 * road.total); };
-rideBtn.onclick = () => { if (!road) return; ride = startRide(); clock = ridden = laps = 0; rideBtn.hidden = true; finishBtn.hidden = false; modeSel.value = 'live'; modeSel.disabled = true; setPlaying(true); };
-finishBtn.onclick = async () => { setPlaying(false); if (await ask('Finish the ride and export it?', ['Finish', 'Cancel']) === 'Finish') finishRide(); };
-$('loadBtn').onclick = () => $('file').click();
-$('file').onchange = e => loadFiles(e.target.files);
-$('menuBtn').onclick = () => showMenu(menu.hidden);
-$('closeBtn').onclick = () => showMenu(false);
-$('snapBtn').onclick = snapGhost;
-$('editorBtn').onclick = () => location.href = 'editor.html' + (ridePath ? '?f=' + encodeURIComponent(ridePath) : '');
-stopBtn.onclick = () => fetch('stop', { method: 'POST' }).then(pollBuild);
-menu.onclick = e => { if (e.target === menu) showMenu(false); };
-canvas.onclick = () => showMenu(true);
-$('view').addEventListener('dragover', e => e.preventDefault());
-$('view').addEventListener('drop', e => { e.preventDefault(); loadFiles(e.dataTransfer.files); });
-connectBtn.onclick = () => kickr.connect(msg => { kstatus.textContent = msg; connectBtn.textContent = kickr.live.device ? 'Disconnect' : 'Connect trainer'; }, () => { if (modeSel.value === 'live') playing = false; });
-addEventListener('keydown', e => {
-  if (!askEl.hidden) { if (e.code === 'Escape') askBtns.lastChild.click(); return; }
-  if (e.code === 'Escape') { showMenu(menu.hidden); return; }
-  if (e.target.tagName === 'INPUT' && e.target.type !== 'range') return;
-  if (!road || !menu.hidden) return;
-  const step = e.shiftKey ? 500 / FT : 50 / FT;
-  if (e.code === 'Space') { e.preventDefault(); togglePlay(); }
-  else if (e.code === 'ArrowRight') { e.preventDefault(); seek(playerZ + step); }
-  else if (e.code === 'ArrowLeft') { e.preventDefault(); seek(playerZ - step); }
-  else if (e.code === 'ArrowUp') { e.preventDefault(); speedIn.value = +speedIn.value + 5; }
-  else if (e.code === 'ArrowDown') { e.preventDefault(); speedIn.value = Math.max(1, +speedIn.value - 5); }
-  else if (e.key === 'g') snapGhost();
-  else if (e.key === ',') shift(-1);
-  else if (e.key === '.') shift(1);
-  else if (e.code === 'Home') { seek(0); if (!ride) rideT = 0; }
-});
+      async function loadTheme() {
+        const t = (await import(`./theme/${P.theme}.js`)).default;
+        assets = t.sprites ? await loadSprites(t.sprites) : null;
+        theme = t;
+      }
 
-// ---------- frame loop ----------
-function resize() { canvas.width = canvas.clientWidth * devicePixelRatio; canvas.height = canvas.clientHeight * devicePixelRatio; }
-addEventListener('resize', resize); resize();
-function drawHud(frame) {
-  const i = frame.base, grade = (road.ele[i + 1] - road.ele[i]) / road.L * 100, mph = v => (v / MPH).toFixed(0) + ' mph';
-  const dir = 'N NNE NE ENE E ESE SE SSE S SSW SW WSW W WNW NW NNW'.split(' ')[Math.round((450 - frame.pos.heading * 180 / Math.PI) % 360 / 22.5) % 16];
-  let ghostLine = '';
-  if (ghostZ !== null) {
-    const dGap = playerZ - ghostZ, tGap = (ghost.timeAt(playerZ) - ghostT) / (ghostPct.value / 100);
-    ghostLine = `\nGhost data:     ${dGap >= 0 ? '+' : '-'}${(Math.abs(dGap) * FT).toFixed(0)} ft   ${tGap >= 0 ? '+' : '-'}${fmt(Math.abs(tGap))}`;
-  }
-  $('hud').textContent =
-    `${track.name}\n` +
-    `Current ride:   ${fmt(clock)}   ${(ridden / MI).toFixed(2)} mi   ${mph(clock ? ridden / clock : 0)} avg\n` +
-    `Current data:   ${mph(speedNow())}   ${kickr.live.power} W   ${kickr.live.cadence} rpm   ${P.virtRing}×${P.virtCog}\n` +
-    `Map data:       ${dir}   ${(road.ele[i] * FT).toFixed(0)} ft   ${grade.toFixed(1)}%` + ghostLine +
-    `\nGPX file data:  ${(playerZ / MI).toFixed(2)} / ${(road.total / MI).toFixed(2)} mi   ${(playerZ / road.total * 100).toFixed(0)}%   lap ${laps + 1}`;
-}
-let lastStep = performance.now();
-/** Advances the simulation by the wall-clock time since the last call. Runs from every frame and from every trainer notification, so a hidden tab still makes progress while pedaling. */
-function step() {
-  const now = performance.now(), dt = Math.min(kickr.live.device ? 5 : 0.1, (now - lastStep) / 1000); lastStep = now;
-  const vRaw = P.trainerSpeed === 'cadence' ? (kickr.speed() ? kickr.live.cadence / 60 * P.virtRing / P.virtCog * P.wheel / 1000 : 0) : kickr.speed() / gearK();
-  liveV += (vRaw - liveV) * Math.min(1, dt * 2);
-  if (!road) return;
-  const gi = Math.min(road.n - 2, Math.floor(playerZ / road.L)), gj = Math.min(road.n - 1, gi + Math.round(20 / road.L));
-  gradeNow = Math.round((road.ele[gj] - road.ele[gi]) / ((gj - gi) * road.L) * 200) / 2;
-  if (!playing) return;
-  rideT += dt; ghostT += dt * ghostPct.value / 100; clock += dt; ridden += speedNow() * dt;
-  setZ(playerZ + speedNow() * dt);
-  if (ride) record(ride, playerZ, kickr.live);
-  if (playerZ >= road.total - 1) { laps++; $('repeat').checked ? seekNow(0) : ride ? rideDone() : setPlaying(false); }
-  if (modeSel.value === 'live' && kickr.live.device) {
-    const key = `${gradeNow}|${gearK()}|${P.crr}|${P.cda}`;
-    if (key !== lastGradeSent) { kickr.setGrade(gradeNow, P.crr, P.cda, gearK()); lastGradeSent = key; }
-  }
-}
-kickr.onData(step);
-function frame() {
-  step();
-  const actors = [];
-  if (road) {
-    ghostZ = ghost && ghostCk.checked ? Math.min(road.total - 1, ghost.distAt(ghostT)) : null;
-    if (P.riderSprite === 'on') actors.push({ z: playerZ + 3.5, offset: 1.2, kind: 'rider', frame: Math.floor(playerZ / P.pedalStride) });
-    if (ghostZ !== null) actors.push({ z: ghostZ + 3.5, offset: -1.2, kind: 'ghost', frame: Math.floor(ghostZ / P.pedalStride) });
-    scrub.value = playerZ / road.total * 1000;
-    posEl.innerHTML = `<b>${(playerZ / MI).toFixed(2)}</b> mi &nbsp; <b>${(speedNow() / MPH).toFixed(0)}</b> mph &nbsp; <b>${fmt(rideT)}</b>`;
-    profile.marker(playerZ, ghostZ);
-  }
-  if (theme) { const fr = render(canvas, road, playerZ, P, theme, assets, actors); if (road) drawHud(fr); }
-  requestAnimationFrame(frame);
-}
-loadTheme().then(() => requestAnimationFrame(frame));
+      // ---------- track + scene ----------
+      function buildRoad() {
+        if (!track) return;
+        road = buildRoadModel(track, P);
+        if (scene) applyScene(road, scene, P);
+        else placeholderScene(road, P);
+        if (P.warnSigns === "on") warnSigns(road);
+        playerZ = Math.min(playerZ, road.total - 1);
+        profile.draw(road);
+      }
+      function loadText(text) {
+        let t;
+        try {
+          t = parseGpx(text);
+        } catch (e) {
+          notice("Could not parse GPX: " + e.message);
+          return false;
+        }
+        endRide();
+        track = t;
+        scene = null;
+        ghost = makeGhost(track);
+        playerZ = 0;
+        rideT = ghostT = clock = ridden = laps = 0;
+        setPlaying(false);
+        modeSel.querySelector("[value=gpx]").disabled = !track.t;
+        if (!track.t && modeSel.value === "gpx") modeSel.value = "const";
+        notice(null);
+        buildRoad();
+        minimap.build(track);
+        return true;
+      }
+      function loadSceneText(text) {
+        try {
+          scene = JSON.parse(text);
+        } catch (e) {
+          notice("Could not parse scene JSON");
+          return;
+        }
+        buildRoad();
+      }
+      const enc = (f) => f.split("/").map(encodeURIComponent).join("/");
+      async function loadFiles(files) {
+        const list = [...files],
+          gpx = list.filter((f) => /\.gpx$/i.test(f.name)),
+          json = list.filter((f) => /\.json$/i.test(f.name));
+        if (gpx.length && !json.length) {
+          const up = await fetch(
+            "upload?f=" + encodeURIComponent("clips/" + gpx[0].name),
+            { method: "POST", body: await gpx[0].text() },
+          )
+            .then((r) => r.ok && r.json())
+            .catch(() => null);
+          const entry =
+            up &&
+            (await (await fetch("rides.json")).json()).find(
+              (x) => x.path === up.path,
+            );
+          if (entry) {
+            listRides();
+            return pick(entry);
+          }
+        }
+        if (!(await settleRide())) return;
+        for (const f of gpx) loadText(await f.text());
+        for (const f of json) loadSceneText(await f.text());
+        ridePath = null;
+        history.replaceState(null, "", location.pathname);
+        showMenu(false);
+      }
+      async function loadUrl(f, withScene = true) {
+        if (!(await settleRide())) return;
+        try {
+          const r = await fetch(enc(f));
+          if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+          if (!loadText(await r.text())) return;
+          const s = withScene
+            ? await fetch(enc(f.replace(/\.gpx$/i, "") + ".scene.json")).catch(
+                () => null,
+              )
+            : null;
+          if (s && s.ok) loadSceneText(await s.text());
+        } catch (e) {
+          notice(`Could not load ${f}: ${e.message}`);
+          return;
+        }
+        ridePath = f;
+        try {
+          localStorage.setItem("lastRide", f);
+        } catch (e) {}
+        store(
+          "recentRides",
+          [f, ...stored("recentRides").filter((x) => x !== f)].slice(0, 5),
+        );
+        history.replaceState(null, "", "?f=" + encodeURIComponent(f));
+        showMenu(false);
+      }
 
-// ---------- boot ----------
-const q = new URLSearchParams(location.search);
-let start = q.get('f');
-if (!start) try { start = localStorage.getItem('lastRide'); } catch (e) {}
-if (start) loadUrl(start).then(() => { if (!track) showMenu(true); else if (q.has('z')) seek(+q.get('z')); });
-else showMenu(true);
-</script>
-</body>
+      // ---------- trainer model ----------
+      const CASSETTE = {
+        "11-28": [11, 12, 13, 14, 15, 17, 19, 21, 24, 28],
+        "11-32": [11, 12, 13, 14, 16, 18, 20, 22, 25, 28, 32],
+        "11-34": [11, 13, 15, 17, 19, 21, 23, 25, 27, 30, 34],
+        "12-25": [12, 13, 14, 15, 16, 17, 18, 19, 21, 23, 25],
+      };
+      const gearK = () => P.physRing / P.physCog / (P.virtRing / P.virtCog);
+      function shift(dir) {
+        const cogs = CASSETTE[P.cassette],
+          next =
+            dir > 0
+              ? [...cogs].reverse().find((c) => c < P.virtCog)
+              : cogs.find((c) => c > P.virtCog);
+        if (next) {
+          P.virtCog = next;
+          syncLeverUI();
+          saveLevers();
+        }
+      }
+      function recordedSpeed(z) {
+        const i = Math.min(road.n - 2, Math.floor(z / road.L)),
+          dt = road.t[i + 1] - road.t[i];
+        return dt > 0 ? road.L / dt : 0;
+      }
+      function speedNow() {
+        if (modeSel.value === "live") return liveV;
+        if (modeSel.value === "gpx" && road.t)
+          return recordedSpeed(playerZ) * +multIn.value;
+        return +speedIn.value * MPH;
+      }
+
+      // ---------- transport + ride ----------
+      function roadXY(z) {
+        const i = Math.min(road.n - 2, Math.floor(z / road.L)),
+          f = z / road.L - i;
+        return [
+          road.x[i] + f * (road.x[i + 1] - road.x[i]),
+          road.y[i] + f * (road.y[i + 1] - road.y[i]),
+        ];
+      }
+      function setZ(z) {
+        playerZ = Math.max(0, Math.min(road.total - 1, z));
+      }
+      function seek(z) {
+        if (ride) {
+          if (!playing)
+            ask(`Move to ${(z / MI).toFixed(2)} mi?`, ["Move", "Cancel"]).then(
+              (a) => a === "Move" && seekNow(z),
+            );
+          return;
+        }
+        seekNow(z);
+      }
+      function seekNow(z) {
+        setZ(z);
+        if (ghost) rideT = ghostT = ghost.timeAt(playerZ);
+      }
+      function snapGhost() {
+        if (ghost) ghostT = ghost.timeAt(playerZ);
+      }
+      function setPlaying(on) {
+        playing = on;
+        playBtn.textContent = on ? "Pause" : ride ? "Resume" : "Play";
+      }
+      function togglePlay() {
+        if (road) setPlaying(!playing);
+      }
+      async function settleRide() {
+        if (!ride) return true;
+        const a = await ask("A ride is in progress.", [
+          "Finish & export",
+          "Discard",
+          "Cancel",
+        ]);
+        if (a === "Finish & export") await finishRide();
+        else if (a === "Discard") endRide();
+        return !ride;
+      }
+      function endRide() {
+        ride = null;
+        rideBtn.hidden = false;
+        finishBtn.hidden = true;
+        modeSel.disabled = false;
+        setPlaying(false);
+      }
+      async function finishRide() {
+        const posAt = (z) => {
+          const [lat, lon] = toLatLon(track, ...roadXY(z));
+          return {
+            lat,
+            lon,
+            ele: road.ele[Math.min(road.n - 1, Math.floor(z / road.L))],
+          };
+        };
+        const gpx = toGpx(ride, track.name || "Ride", posAt),
+          d = new Date(ride.startedAt),
+          pad = (n) => String(n).padStart(2, "0");
+        const name = `${(track.name || "ride").replace(/[^\w\-]+/g, "_")}-${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}.gpx`;
+        endRide();
+        await fetch("upload?f=" + encodeURIComponent("rides/" + name), {
+          method: "POST",
+          body: gpx,
+        }).catch(() => {});
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(
+          new Blob([gpx], { type: "application/gpx+xml" }),
+        );
+        a.download = name;
+        a.click();
+        URL.revokeObjectURL(a.href);
+      }
+      async function rideDone() {
+        setPlaying(false);
+        const a = await ask("Route complete.", [
+          "Restart",
+          "Join elsewhere",
+          "Finish",
+        ]);
+        if (a === "Restart") {
+          seekNow(0);
+          setPlaying(true);
+        } else if (a === "Finish") finishRide();
+      }
+      playBtn.onclick = togglePlay;
+      scrub.oninput = () => {
+        if (road && !ride) seek((scrub.value / 1000) * road.total);
+      };
+      scrub.onchange = () => {
+        if (road && ride) seek((scrub.value / 1000) * road.total);
+      };
+      rideBtn.onclick = () => {
+        if (!road) return;
+        ride = startRide();
+        clock = ridden = laps = 0;
+        rideBtn.hidden = true;
+        finishBtn.hidden = false;
+        modeSel.value = "live";
+        modeSel.disabled = true;
+        setPlaying(true);
+      };
+      finishBtn.onclick = async () => {
+        setPlaying(false);
+        if (
+          (await ask("Finish the ride and export it?", [
+            "Finish",
+            "Cancel",
+          ])) === "Finish"
+        )
+          finishRide();
+      };
+      $("loadBtn").onclick = () => $("file").click();
+      $("file").onchange = (e) => loadFiles(e.target.files);
+      $("menuBtn").onclick = () => showMenu(menu.hidden);
+      $("closeBtn").onclick = () => showMenu(false);
+      $("snapBtn").onclick = snapGhost;
+      $("editorBtn").onclick = () =>
+        (location.href =
+          "editor.html" +
+          (ridePath ? "?f=" + encodeURIComponent(ridePath) : ""));
+      stopBtn.onclick = () => fetch("stop", { method: "POST" }).then(pollBuild);
+      menu.onclick = (e) => {
+        if (e.target === menu) showMenu(false);
+      };
+      canvas.onclick = () => showMenu(true);
+      $("view").addEventListener("dragover", (e) => e.preventDefault());
+      $("view").addEventListener("drop", (e) => {
+        e.preventDefault();
+        loadFiles(e.dataTransfer.files);
+      });
+      connectBtn.onclick = () =>
+        kickr.connect(
+          (msg) => {
+            kstatus.textContent = msg;
+            connectBtn.textContent = kickr.live.device
+              ? "Disconnect"
+              : "Connect trainer";
+          },
+          () => {
+            if (modeSel.value === "live") playing = false;
+          },
+        );
+      addEventListener("keydown", (e) => {
+        if (!askEl.hidden) {
+          if (e.code === "Escape") askBtns.lastChild.click();
+          return;
+        }
+        if (e.code === "Escape") {
+          showMenu(menu.hidden);
+          return;
+        }
+        if (e.target.tagName === "INPUT" && e.target.type !== "range") return;
+        if (!road || !menu.hidden) return;
+        const step = e.shiftKey ? 500 / FT : 50 / FT;
+        if (e.code === "Space") {
+          e.preventDefault();
+          togglePlay();
+        } else if (e.code === "ArrowRight") {
+          e.preventDefault();
+          seek(playerZ + step);
+        } else if (e.code === "ArrowLeft") {
+          e.preventDefault();
+          seek(playerZ - step);
+        } else if (e.code === "ArrowUp") {
+          e.preventDefault();
+          speedIn.value = +speedIn.value + 5;
+        } else if (e.code === "ArrowDown") {
+          e.preventDefault();
+          speedIn.value = Math.max(1, +speedIn.value - 5);
+        } else if (e.key === "g") snapGhost();
+        else if (e.key === ",") shift(-1);
+        else if (e.key === ".") shift(1);
+        else if (e.code === "Home") {
+          seek(0);
+          if (!ride) rideT = 0;
+        }
+      });
+
+      // ---------- frame loop ----------
+      function resize() {
+        canvas.width = canvas.clientWidth * devicePixelRatio;
+        canvas.height = canvas.clientHeight * devicePixelRatio;
+      }
+      addEventListener("resize", resize);
+      resize();
+      function drawHud(frame) {
+        const i = frame.base,
+          grade = ((road.ele[i + 1] - road.ele[i]) / road.L) * 100,
+          mph = (v) => (v / MPH).toFixed(0) + " mph";
+        const dir = "N NNE NE ENE E ESE SE SSE S SSW SW WSW W WNW NW NNW".split(
+          " ",
+        )[
+          Math.round(
+            ((450 - (frame.pos.heading * 180) / Math.PI) % 360) / 22.5,
+          ) % 16
+        ];
+        let ghostLine = "";
+        if (ghostZ !== null) {
+          const dGap = playerZ - ghostZ,
+            tGap = (ghost.timeAt(playerZ) - ghostT) / (ghostPct.value / 100);
+          ghostLine = `\nGhost data:     ${dGap >= 0 ? "+" : "-"}${(Math.abs(dGap) * FT).toFixed(0)} ft   ${tGap >= 0 ? "+" : "-"}${fmt(Math.abs(tGap))}`;
+        }
+        $("hud").textContent =
+          `${track.name}\n` +
+          `Current ride:   ${fmt(clock)}   ${(ridden / MI).toFixed(2)} mi   ${mph(clock ? ridden / clock : 0)} avg\n` +
+          `Current data:   ${mph(speedNow())}   ${kickr.live.power} W   ${kickr.live.cadence} rpm   ${P.virtRing}×${P.virtCog}\n` +
+          `Map data:       ${dir}   ${(road.ele[i] * FT).toFixed(0)} ft   ${grade.toFixed(1)}%` +
+          ghostLine +
+          `\nGPX file data:  ${(playerZ / MI).toFixed(2)} / ${(road.total / MI).toFixed(2)} mi   ${((playerZ / road.total) * 100).toFixed(0)}%   lap ${laps + 1}`;
+      }
+      let lastStep = performance.now();
+      /** Advances the simulation by the wall-clock time since the last call. Runs from every frame and from every trainer notification, so a hidden tab still makes progress while pedaling. */
+      function step() {
+        const now = performance.now(),
+          dt = Math.min(kickr.live.device ? 5 : 0.1, (now - lastStep) / 1000);
+        lastStep = now;
+        const vRaw =
+          P.trainerSpeed === "cadence"
+            ? kickr.speed()
+              ? ((((kickr.live.cadence / 60) * P.virtRing) / P.virtCog) *
+                  P.wheel) /
+                1000
+              : 0
+            : kickr.speed() / gearK();
+        liveV += (vRaw - liveV) * Math.min(1, dt * 2);
+        if (!road) return;
+        const gi = Math.min(road.n - 2, Math.floor(playerZ / road.L)),
+          gj = Math.min(road.n - 1, gi + Math.round(20 / road.L));
+        gradeNow =
+          Math.round(
+            ((road.ele[gj] - road.ele[gi]) / ((gj - gi) * road.L)) * 200,
+          ) / 2;
+        if (!playing) return;
+        rideT += dt;
+        ghostT += (dt * ghostPct.value) / 100;
+        clock += dt;
+        ridden += speedNow() * dt;
+        setZ(playerZ + speedNow() * dt);
+        if (ride) record(ride, playerZ, kickr.live);
+        if (playerZ >= road.total - 1) {
+          laps++;
+          $("repeat").checked
+            ? seekNow(0)
+            : ride
+              ? rideDone()
+              : setPlaying(false);
+        }
+        if (modeSel.value === "live" && kickr.live.device) {
+          const key = `${gradeNow}|${gearK()}|${P.crr}|${P.cda}`;
+          if (key !== lastGradeSent) {
+            kickr.setGrade(gradeNow, P.crr, P.cda, gearK());
+            lastGradeSent = key;
+          }
+        }
+      }
+      kickr.onData(step);
+      function frame() {
+        step();
+        const actors = [];
+        if (road) {
+          ghostZ =
+            ghost && ghostCk.checked
+              ? Math.min(road.total - 1, ghost.distAt(ghostT))
+              : null;
+          if (P.riderSprite === "on")
+            actors.push({
+              z: playerZ + 3.5,
+              offset: 1.2,
+              kind: "rider",
+              frame: Math.floor(playerZ / P.pedalStride),
+            });
+          if (ghostZ !== null)
+            actors.push({
+              z: ghostZ + 3.5,
+              offset: -1.2,
+              kind: "ghost",
+              frame: Math.floor(ghostZ / P.pedalStride),
+            });
+          scrub.value = (playerZ / road.total) * 1000;
+          posEl.innerHTML = `<b>${(playerZ / MI).toFixed(2)}</b> mi &nbsp; <b>${(speedNow() / MPH).toFixed(0)}</b> mph &nbsp; <b>${fmt(rideT)}</b>`;
+          profile.marker(playerZ, ghostZ);
+        }
+        if (theme) {
+          const fr = render(canvas, road, playerZ, P, theme, assets, actors);
+          if (road) drawHud(fr);
+        }
+        requestAnimationFrame(frame);
+      }
+      loadTheme().then(() => requestAnimationFrame(frame));
+
+      // ---------- boot ----------
+      const q = new URLSearchParams(location.search);
+      let start = q.get("f");
+      if (!start)
+        try {
+          start = localStorage.getItem("lastRide");
+        } catch (e) {}
+      if (start)
+        loadUrl(start).then(() => {
+          if (!track) showMenu(true);
+          else if (q.has("z")) seek(+q.get("z"));
+        });
+      else showMenu(true);
+    </script>
+  </body>
 </html>
