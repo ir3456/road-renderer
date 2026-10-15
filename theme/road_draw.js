@@ -101,23 +101,27 @@ export function drawBackground(ctx, frame, P, pal, assets) {
 export const mix = (pal, c, f) =>
   `rgb(${(c[0] + (pal.sky[0] - c[0]) * f) | 0},${(c[1] + (pal.sky[1] - c[1]) * f) | 0},${(c[2] + (pal.sky[2] - c[2]) * f) | 0})`;
 
+/** Fills the trapezoid between the near edge (al..ar at ay) and the far edge (bl..br at by) one whole pixel row at a time, so nothing is antialiased. */
+export function strip(ctx, al, ar, ay, bl, br, by) {
+  for (let y = Math.round(by); y < Math.round(ay); y++) {
+    const t = (y + 0.5 - by) / (ay - by),
+      l = bl + (al - bl) * t,
+      r = br + (ar - br) * t,
+      w = Math.round(Math.abs(r - l));
+    if (w) ctx.fillRect(Math.round(Math.min(l, r)), y, w, 1);
+  }
+}
+
 export function drawRoad(ctx, frame, P, pal) {
   const { quads, W } = frame;
-  const quad = (ax, ay, aw, bx, by, bw) => {
-    ctx.beginPath();
-    ctx.moveTo(ax - aw, ay);
-    ctx.lineTo(ax + aw, ay);
-    ctx.lineTo(bx + bw, by);
-    ctx.lineTo(bx - bw, by);
-    ctx.closePath();
-    ctx.fill();
-  };
+  const quad = (ax, ay, aw, bx, by, bw) =>
+    strip(ctx, ax - aw, ax + aw, ay, bx - bw, bx + bw, by);
   for (const q of quads) {
     const { a, b, i, fog } = q,
       alt = Math.floor(i / P.stripeLen) % 2,
       kind = frame.kind ? frame.kind[i] : "road";
     ctx.fillStyle = mix(pal, pal.grass[alt], fog);
-    ctx.fillRect(0, b.sy, W, a.sy - b.sy);
+    ctx.fillRect(0, Math.round(b.sy), W, Math.round(a.sy) - Math.round(b.sy));
     const wt = frame.water && frame.water[i];
     if (wt)
       for (const side of [-1, 1]) {
@@ -128,13 +132,15 @@ export function drawRoad(ctx, frame, P, pal) {
           (v[2] ? pal[v[2]] || pal.road : pal.water)[alt],
           fog,
         );
-        ctx.beginPath();
-        ctx.moveTo(a.sx + side * Math.max(a.sw, v[0] * a.ppm), a.sy);
-        ctx.lineTo(a.sx + side * v[1] * a.ppm, a.sy);
-        ctx.lineTo(b.sx + side * v[1] * b.ppm, b.sy);
-        ctx.lineTo(b.sx + side * Math.max(b.sw, v[0] * b.ppm), b.sy);
-        ctx.closePath();
-        ctx.fill();
+        strip(
+          ctx,
+          a.sx + side * Math.max(a.sw, v[0] * a.ppm),
+          a.sx + side * v[1] * a.ppm,
+          a.sy,
+          b.sx + side * Math.max(b.sw, v[0] * b.ppm),
+          b.sx + side * v[1] * b.ppm,
+          b.sy,
+        );
       }
     ctx.fillStyle = mix(pal, (pal[kind] || pal.road)[alt], fog);
     quad(a.sx, a.sy, a.sw, b.sx, b.sy, b.sw);
@@ -214,6 +220,10 @@ function signSprite(text) {
   x.textAlign = "center";
   x.textBaseline = "middle";
   x.fillText(text, c.width / 2, 10);
+  const d = x.getImageData(0, 0, c.width, c.height);
+  for (let i = 3; i < d.data.length; i += 4)
+    d.data[i] = d.data[i] < 128 ? 0 : 255;
+  x.putImageData(d, 0, 0);
   const s = {
     img: c,
     w: c.width,
