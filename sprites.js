@@ -1,7 +1,7 @@
 export async function loadSprites(urls) {
   const out = {};
   for (const url of [].concat(urls)) {
-    const { pxPerMeter, ...manifest } = await (await fetch(url)).json(), dir = url.slice(0, url.lastIndexOf('/') + 1);
+    const { pxPerMeter, ...manifest } = await (await fetch(url)).json().catch(e => { console.error(url, e); return {}; }), dir = url.slice(0, url.lastIndexOf('/') + 1);
     await Promise.all(Object.entries(manifest).map(([name, m]) => new Promise(res => {
       const img = new Image();
       img.onload = () => {

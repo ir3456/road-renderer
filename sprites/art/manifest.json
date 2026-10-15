@@ -8,5 +8,6 @@
   "left_turn_sign": { "file": "left_turn_sign.png", "meters": 3 },
   "right_turn_sign": { "file": "right_turn_sign.png", "meters": 3 },
   "uphill_sign": { "file": "uphill_sign.png", "meters": 3 },
-  "downhill_sign": { "file": "downhill_sign.png", "meters": 3 }
+  "downhill_sign": { "file": "downhill_sign.png", "meters": 3 },
+  "traffic_light": { "file": "traffic_light.png", "meters": 4 }
 }
