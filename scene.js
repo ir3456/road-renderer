@@ -1,18 +1,7 @@
 import { smooth } from './road.js';
+import CLASSES from './classes.json' with { type: 'json' };
 
 const PLACEHOLDER = ['pine', 'pine', 'pine', 'tree', 'tree', 'bush', 'rock', 'sign', 'building'];
-const CLASS = {
-  wood:     { kinds: ['pine', 'pine', 'tree'], w: 1.0 },
-  scrub:    { kinds: ['bush', 'bush', 'tree'], w: 0.5 },
-  grass:    { kinds: ['bush'], w: 0.1 },
-  farm:     { kinds: ['bush'], w: 0.05 },
-  rock:     { kinds: ['rock', 'rock', 'bush'], w: 0.4 },
-  cliff:    { kinds: ['rock', 'rock', 'bush'], w: 0.6 },
-  cabin:    { kinds: ['cabin', 'cabin', 'tree'], w: 0.5, far: true },
-  urban:    { kinds: ['building', 'building', 'sign'], w: 0.5, far: true },
-  building: { kinds: ['building'], w: 0.6, far: true },
-  stream:   { kinds: ['bush', 'tree', 'rock'], w: 0.4 },
-};
 const hash = (i, s) => { const v = Math.sin(i * 12.9898 + s * 78.233) * 43758.5453; return v - Math.floor(v); };
 
 export function placeholderScene(road, P) {
@@ -72,7 +61,7 @@ export function applyScene(road, scene, P) {
     for (const side of [-1, 1]) {
       if (road.junc && road.junc[i] & (side < 0 ? 1 : 2)) continue;
       const tags = (side < 0 ? scene.left : scene.right)?.[j] || '', slope = (side < 0 ? scene.slopeL : scene.slopeR)?.[j] || 0;
-      const opts = tags ? tags.split('+').map(t => CLASS[t]).filter(Boolean) : [];
+      const opts = tags ? tags.split('+').map(t => CLASSES.covers[t]).filter(c => c?.kinds) : [];
       if (!opts.length) opts.push({ kinds: ['bush'], w: 0.08 });
       let total = opts.reduce((a, o) => a + o.w, 0);
       if (slope <= -60) total *= 0.5;

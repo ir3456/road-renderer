@@ -176,20 +176,19 @@ def line_dist(line, px, py, pad):
 def near_line(line, px, py, dist): return line_dist(line, px, py, dist) <= dist
 
 
+OSM_KEYS = ('natural', 'landuse', 'waterway', 'building', 'barrier', 'power')
+COVERS = json.load(open(os.path.join(os.path.dirname(TILES), 'classes.json')))['covers']
+
+
 def classify(tags):
-    n, l, w = tags.get('natural', ''), tags.get('landuse', ''), tags.get('waterway', '')
-    if n in ('wood', 'tree_row') or l in ('forest', 'wood'): return 'wood'
-    if n in ('scrub', 'heath'): return 'scrub'
-    if n in ('grassland', 'fell') or l in ('meadow', 'grass', 'recreation_ground', 'cemetery'): return 'grass'
-    if l in ('farmland', 'farmyard', 'orchard', 'vineyard'): return 'farm'
-    if n == 'water' or l in ('reservoir', 'basin'): return 'water'
-    if l in ('residential', 'commercial', 'retail', 'industrial', 'construction', 'garages'): return 'urban'
-    if n in ('bare_rock', 'scree', 'shingle', 'rock', 'stone'): return 'rock'
-    if n == 'cliff': return 'cliff'
-    if w in ('river', 'stream', 'canal', 'drain'): return 'stream'
-    if 'building' in tags: return 'cabin' if tags['building'] in ('house', 'cabin', 'hut', 'shed', 'detached', 'bungalow', 'farm', 'barn', 'garage', 'yes') and tags.get('building:levels', '1') in ('1', '2') else 'building'
-    if tags.get('barrier') in ('guard_rail', 'fence', 'wall', 'retaining_wall'): return 'rail'
-    if tags.get('power') == 'line': return 'power'
+    """First cover in classes.json whose OSM values include one of the element's tags; '*' matches any value, maxLevels caps building:levels."""
+    for cover, c in COVERS.items():
+        for key in OSM_KEYS:
+            vals = c.get(key)
+            if not vals or key not in tags or (tags[key] not in vals and '*' not in vals): continue
+            levels = tags.get('building:levels', '1')
+            if 'maxLevels' in c and not (levels.isdigit() and int(levels) <= c['maxLevels']): continue
+            return cover
     return None
 
 
