@@ -116,6 +116,8 @@ export function drawRoad(ctx, frame, P, pal) {
   const { quads, W } = frame;
   const quad = (ax, ay, aw, bx, by, bw) =>
     strip(ctx, ax - aw, ax + aw, ay, bx - bw, bx + bw, by);
+  const open = (i, side) =>
+    frame.xings?.some((x) => x.side === side && i >= x.i && i < x.i + x.rows);
   for (const q of quads) {
     const { a, b, i, fog } = q,
       alt = Math.floor(i / P.stripeLen) % 2,
@@ -147,22 +149,16 @@ export function drawRoad(ctx, frame, P, pal) {
     if (kind !== "road") continue;
     const ew = pal.edgeWidth;
     ctx.fillStyle = mix(pal, pal.edge[alt], fog);
-    quad(
-      a.sx - a.sw * (1 - ew / 2),
-      a.sy,
-      (a.sw * ew) / 2,
-      b.sx - b.sw * (1 - ew / 2),
-      b.sy,
-      (b.sw * ew) / 2,
-    );
-    quad(
-      a.sx + a.sw * (1 - ew / 2),
-      a.sy,
-      (a.sw * ew) / 2,
-      b.sx + b.sw * (1 - ew / 2),
-      b.sy,
-      (b.sw * ew) / 2,
-    );
+    for (const side of [-1, 1])
+      if (!open(i, side))
+        quad(
+          a.sx + side * a.sw * (1 - ew / 2),
+          a.sy,
+          (a.sw * ew) / 2,
+          b.sx + side * b.sw * (1 - ew / 2),
+          b.sy,
+          (b.sw * ew) / 2,
+        );
     const n = frame.lanes ? frame.lanes[i] : 2,
       one = frame.oneway && frame.oneway[i];
     for (let j = 1; j < n; j++) {
