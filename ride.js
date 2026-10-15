@@ -1,13 +1,20 @@
-export function startRide() { return { startedAt: Date.now(), samples: [], lastSample: 0 }; }
+export function startRide() {
+  return { startedAt: Date.now(), samples: [], lastSample: 0 };
+}
 
 export function record(ride, z, live) {
   const now = Date.now();
   if (now - ride.lastSample < 1000) return;
-  ride.lastSample = now; ride.samples.push([now, z, live.power, live.cadence]);
+  ride.lastSample = now;
+  ride.samples.push([now, z, live.power, live.cadence]);
 }
 
 export function toGpx(ride, name, posAt) {
-  const esc = s => s.replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
+  const esc = (s) =>
+    s.replace(
+      /[<>&"]/g,
+      (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;" })[c],
+    );
   let out = `<?xml version="1.0" encoding="UTF-8"?>\n<gpx creator="road_renderer" version="1.1" xmlns="http://www.topografix.com/GPX/1/1" xmlns:gpxtpx="http://www.garmin.com/xmlschemas/TrackPointExtension/v1">\n<metadata><time>${new Date(ride.startedAt).toISOString()}</time></metadata>\n<trk><name>${esc(name)}</name><type>VirtualRide</type><trkseg>\n`;
   for (const [ts, z, pw, cad] of ride.samples) {
     const p = posAt(z);
