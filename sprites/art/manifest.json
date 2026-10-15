@@ -1,3 +1,7 @@
 {
- "pine": {"file": "pine_1.png", "anchorX": 16, "anchorY": 64, "meters": 14}
+  "pxPerMeter": 4,
+  "pine": { "file": "pine_1.png" },
+  "tree_1": { "file": "tree_1.png" },
+  "tree_2": { "file": "tree_2.png" },
+  "tree_3": { "file": "tree_3.png" }
 }

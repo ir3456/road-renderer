@@ -1,13 +1,13 @@
 export async function loadSprites(urls) {
   const out = {};
   for (const url of [].concat(urls)) {
-    const manifest = await (await fetch(url)).json(), dir = url.slice(0, url.lastIndexOf('/') + 1);
+    const { pxPerMeter, ...manifest } = await (await fetch(url)).json(), dir = url.slice(0, url.lastIndexOf('/') + 1);
     await Promise.all(Object.entries(manifest).map(([name, m]) => new Promise(res => {
       const img = new Image();
       img.onload = () => {
         const w = m.frameW || img.width, h = m.frameH || img.height, cols = Math.floor(img.width / w);
         const frames = m.frames ? Array.from({ length: m.frames }, (_, i) => [((m.row || 0) * cols + i) % cols * w, Math.floor(((m.row || 0) * cols + i) / cols) * h]) : [[0, 0]];
-        out[name] = { img, w, h, frames, ax: m.anchorX / w, ay: m.anchorY / h, meters: m.meters, flip: !!m.faceRoad }; res();
+        out[name] = { img, w, h, frames, ax: (m.anchorX ?? w / 2) / w, ay: (m.anchorY ?? h) / h, meters: m.meters ?? h / pxPerMeter, flip: !!m.faceRoad }; res();
       };
       img.onerror = res;
       img.src = dir + m.file;

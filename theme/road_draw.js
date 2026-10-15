@@ -170,7 +170,7 @@ export function drawSprites(ctx, frame, P, assets, kinds, pal) {
   if (!assets) return;
   const { pts, clip, props, prof, profD, base, actors, junc, water } = frame, mode = prof ? P.terrain : 'off';
   ctx.imageSmoothingEnabled = false;
-  const sprite = (kind, i) => { const names = kinds[kind]; return names && assets[names[i % names.length]]; };
+  const sprite = (kind, i) => { const names = kinds[kind]; return names && assets[names[(Math.imul(i, 2654435761) >>> 13) % names.length]]; };
   const rock = mode === 'wall' && sprite('rocktile', 0), pat = rock ? ctx.createPattern(rock.img, 'repeat') : null;
   let ai = 0;
   for (let k = clip.length - 1; k >= 0; k--) {
@@ -203,7 +203,7 @@ export function drawSprites(ctx, frame, P, assets, kinds, pal) {
 }
 
 export const SPRITES = ['sprites/placeholder/manifest.json', 'sprites/bike/manifest.json', 'sprites/art/manifest.json'];
-export const KINDS = { pine: ['pine'], tree: ['tree'], bush: ['bush'], rock: ['rock'], sign: ['sign'], building: ['building'], cliff: ['cliff'], cabin: ['cabin'], rider: ['bikeback'], ghost: ['bikeback'], bankL: ['bankL'], bankR: ['bankR'], rocktile: ['rocktile'], stopsign: ['stopsign'], signal: ['signal'] };
+export const KINDS = { pine: ['pine'], tree: ['tree_1', 'tree_2', 'tree_3'], bush: ['bush'], rock: ['rock'], sign: ['sign'], building: ['building'], cliff: ['cliff'], cabin: ['cabin'], rider: ['bikeback'], ghost: ['bikeback'], bankL: ['bankL'], bankR: ['bankR'], rocktile: ['rocktile'], stopsign: ['stopsign'], signal: ['signal'] };
 
 /** A theme is a palette plus the sprite manifests and the prop kind → sprite name table; the drawing is shared. */
 export function theme(name, pal, { sprites = SPRITES, kinds = KINDS } = {}) {
