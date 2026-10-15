@@ -1031,7 +1031,7 @@
       function drawHud(frame) {
         const i = frame.base,
           grade = ((road.ele[i + 1] - road.ele[i]) / road.L) * 100,
-          mph = (v) => (v / MPH).toFixed(0) + " mph";
+          mph = (v, d = 0) => (v / MPH).toFixed(d) + " mph";
         const dir = "N NNE NE ENE E ESE SE SSE S SSW SW WSW W WNW NW NNW".split(
           " ",
         )[
@@ -1047,7 +1047,7 @@
         }
         $("hud").textContent =
           `${track.name}\n` +
-          `Current ride:   ${fmt(clock)}   ${(ridden / MI).toFixed(2)} mi   ${mph(clock ? ridden / clock : 0)} avg\n` +
+          `Current ride:   ${fmt(clock)}   ${(ridden / MI).toFixed(2)} mi   ${mph(clock ? ridden / clock : 0, 1)} avg\n` +
           `Current data:   ${mph(speedNow())}   ${kickr.live.power} W   ${kickr.live.cadence} rpm   ${P.virtRing}×${P.virtCog}\n` +
           `Map data:       ${dir}   ${(road.ele[i] * FT).toFixed(0)} ft   ${grade.toFixed(1)}%` +
           ghostLine +
