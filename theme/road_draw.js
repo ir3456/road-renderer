@@ -40,14 +40,20 @@ function columns(W, fov) {
   return colMap;
 }
 
-export function drawBackground(ctx, frame, P, pal) {
+export function drawBackground(ctx, frame, P, pal, assets) {
   const { W, H, horizon } = frame,
-    hz = Math.round(horizon);
-  const g = ctx.createLinearGradient(0, 0, 0, hz);
-  g.addColorStop(0, `rgb(${pal.skyTop})`);
-  g.addColorStop(1, `rgb(${pal.sky})`);
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, W, hz);
+    hz = Math.round(horizon),
+    img = assets?.[pal.skyImage];
+  if (img) {
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(img.img, 0, 0, W, H);
+  } else {
+    const g = ctx.createLinearGradient(0, 0, 0, hz);
+    g.addColorStop(0, `rgb(${pal.skyTop})`);
+    g.addColorStop(1, `rgb(${pal.sky})`);
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, hz);
+  }
   ctx.fillStyle = `rgb(${pal.ground})`;
   ctx.fillRect(0, hz, W, H - hz);
   const heading = frame.pos ? frame.pos.heading : 0,
@@ -456,7 +462,7 @@ export function theme(name, pal, { sprites = SPRITES, kinds = KINDS } = {}) {
     sprites,
     kinds,
     draw(ctx, frame, P, assets) {
-      drawBackground(ctx, frame, P, pal);
+      drawBackground(ctx, frame, P, pal, assets);
       drawRoad(ctx, frame, P, pal);
       drawJunctions(ctx, frame, P, pal);
       drawSprites(ctx, frame, P, assets, kinds, pal);

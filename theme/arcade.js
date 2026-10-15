@@ -3,6 +3,7 @@ import { theme } from "./road_draw.js";
 const pal = {
   skyTop: [40, 96, 224],
   sky: [136, 192, 248],
+  skyImage: "sky",
   ridgeFar: [96, 120, 184],
   ridgeFarHeight: 0.32,
   ridgeNear: [56, 104, 72],

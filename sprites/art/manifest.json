@@ -32,6 +32,9 @@
     "file": "downhill_sign.png",
     "meters": 3
   },
+  "sky": {
+    "file": "sky.png"
+  },
   "traffic_light": {
     "file": "traffic_light.png",
     "meters": 4
