@@ -34,6 +34,7 @@ export async function loadSprites(urls) {
                 ay: (m.anchorY ?? h) / h,
                 meters: m.meters ?? h / pxPerMeter,
                 flip: !!m.faceRoad,
+                stack: !!m.stack,
               };
               res();
             };

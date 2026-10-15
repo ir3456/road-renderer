@@ -12,6 +12,59 @@ const PLACEHOLDER = [
   "sign",
   "building",
 ];
+/** Value of an OSM tag in a classes.json section: exact key, then a numeric range key ("3", "3-5", "6+", ">2", "<3"), then "*"; undefined when nothing matches. */
+function lookup(section, v) {
+  if (v in section) return section[v];
+  const n = +v;
+  if (!Number.isNaN(n))
+    for (const k in section) {
+      const m = /^([<>])?(\d+)(?:-(\d+)|(\+))?$/.exec(k);
+      if (!m) continue;
+      const a = +m[2];
+      if (
+        m[1] === ">"
+          ? n > a
+          : m[1] === "<"
+            ? n < a
+            : m[3]
+              ? n >= a && n <= +m[3]
+              : m[4]
+                ? n >= a
+                : n === a
+      )
+        return section[k];
+    }
+  return section["*"];
+}
+
+const setCache = new Map();
+/** The sets a sample side's OSM tag string resolves to, one entry per set: per element, the first section of classes.json in file order that matches one of its tags, null meaning ignored. */
+function sets(tags) {
+  if (setCache.has(tags)) return setCache.get(tags);
+  const out = [];
+  for (const el of tags.split("+")) {
+    const t = Object.fromEntries(
+      el
+        .split(";")
+        .map((kv) => [
+          kv.slice(0, kv.indexOf("=")),
+          kv.slice(kv.indexOf("=") + 1),
+        ]),
+    );
+    let name;
+    for (const key in CLASSES.osm) {
+      if (!(key in t)) continue;
+      name = lookup(CLASSES.osm[key], t[key]);
+      if (name !== undefined) break;
+    }
+    const set = name && CLASSES.sets[name];
+    if (set?.sprites && !out.some((o) => o.name === name))
+      out.push({ ...set, name, levels: +t["building:levels"] || set.levels });
+  }
+  setCache.set(tags, out);
+  return out;
+}
+
 const hash = (i, s) => {
   const v = Math.sin(i * 12.9898 + s * 78.233) * 43758.5453;
   return v - Math.floor(v);
@@ -153,30 +206,25 @@ export function applyScene(road, scene, P) {
       if (road.junc && road.junc[i] & (side < 0 ? 1 : 2)) continue;
       const tags = (side < 0 ? scene.left : scene.right)?.[j] || "",
         slope = (side < 0 ? scene.slopeL : scene.slopeR)?.[j] || 0;
-      const opts = tags
-        ? tags
-            .split("+")
-            .map((t) => CLASSES.covers[t])
-            .filter((c) => c?.kinds)
-        : [];
-      if (!opts.length) opts.push({ kinds: ["bush"], w: 0.08 });
-      let total = opts.reduce((a, o) => a + o.w, 0);
+      const opts = tags ? sets(tags) : [];
+      if (!opts.length) opts.push({ sprites: ["bush"], density: 0.08 });
+      let total = opts.reduce((a, o) => a + o.density, 0);
       if (slope <= -60) total *= 0.5;
       if (hash(i, side) >= total * base) continue;
-      let pick = hash(i, side + 2) * opts.reduce((a, o) => a + o.w, 0),
+      let pick = hash(i, side + 2) * opts.reduce((a, o) => a + o.density, 0),
         o = opts[0];
       for (o of opts) {
-        pick -= o.w;
+        pick -= o.density;
         if (pick <= 0) break;
       }
-      const kind = o.kinds[Math.floor(hash(i, side + 6) * o.kinds.length)];
+      const kind = o.sprites[Math.floor(hash(i, side + 6) * o.sprites.length)];
       const offset =
           side *
           (o.far ? 8 + hash(i, side + 4) * 20 : 2 + hash(i, side + 4) * 14),
         wv = road.water?.[i]?.[side < 0 ? 0 : 1],
         d = (road.hw ? road.hw[i] : 4) + Math.abs(offset);
       if (wv && d > wv[0] - 2 && d < wv[1] + 2) continue;
-      (list ||= []).push({ kind, offset });
+      (list ||= []).push({ kind, offset, levels: o.levels });
     }
     if (road.prof) {
       const j1 = Math.min(scene.n - 1, j + 1),

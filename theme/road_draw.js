@@ -178,9 +178,25 @@ export function drawRoad(ctx, frame, P, pal) {
   }
 }
 
-function blit(ctx, s, sx, sy, ppm, clipY, frame = 0, flip = false) {
+function blit(ctx, s, sx, sy, ppm, clipY, frame = 0, flip = false, levels) {
   const sh = Math.round(s.meters * ppm);
   if (sh < 1) return;
+  if (s.stack) {
+    const piece = { ...s, stack: false },
+      n = Math.max(1, levels || 1);
+    for (let k = 0; k <= n; k++)
+      blit(
+        ctx,
+        piece,
+        sx,
+        sy - k * sh,
+        ppm,
+        clipY,
+        k === 0 ? 0 : k === n ? 2 : 1,
+        flip,
+      );
+    return;
+  }
   const sw = Math.max(1, Math.round((sh * s.w) / s.h)),
     [fx, fy] = s.frames[frame % s.frames.length];
   const dx = Math.round(sx - (flip ? 1 - s.ax : s.ax) * sw),
@@ -446,6 +462,7 @@ export function drawSprites(ctx, frame, P, assets, kinds, pal) {
         clip[k],
         0,
         s.flip && sp.offset > 0,
+        sp.levels,
       );
     }
   }
@@ -458,7 +475,7 @@ export const SPRITES = [
   "sprites/bike/manifest.json",
   "sprites/art/manifest.json",
 ];
-export const KINDS = CLASSES.kinds;
+export const KINDS = CLASSES.sprites;
 
 /** A theme is a palette plus the sprite manifests and the prop kind → sprite name table; the drawing is shared. */
 export function theme(name, pal, { sprites = SPRITES, kinds = KINDS } = {}) {

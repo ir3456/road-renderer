@@ -176,8 +176,7 @@ def line_dist(line, px, py, pad):
 def near_line(line, px, py, dist): return line_dist(line, px, py, dist) <= dist
 
 
-OSM_KEYS = ('natural', 'landuse', 'waterway', 'building', 'barrier', 'power')
-COVERS = json.load(open(os.path.join(os.path.dirname(TILES), 'classes.json')))['covers']
+OSM_KEYS = list(json.load(open(os.path.join(os.path.dirname(TILES), 'classes.json')))['osm'])
 
 
 def classify(tags):
@@ -193,21 +192,23 @@ def classify(tags):
 
 
 def osm_tags(elements, xs, ys, cos0, lx, ly, rx, ry):
+    """Per sample side, the OSM tags (keys listed in classes.json) of every element within reach: elements joined by '+', one element's tags by ';'. Polygons by point-in-polygon at the side sample, buildings also within 30 m, waterway and power lines within 40 m, other lines 20 m."""
     left = [set() for _ in xs]; right = [set() for _ in xs]
     for e in elements:
-        tags = e.get('tags', {}); c = classify(tags)
-        if not c or 'highway' in tags: continue
+        tags = e.get('tags', {}); keys = [k for k in OSM_KEYS if k in tags]
+        if not keys or 'highway' in tags: continue
+        tok = ';'.join(f"{k}={tags[k].split(';')[0].replace('+', '_').replace('=', '_')}" for k in keys)
         rings, lines = rings_of(e, cos0)
         for ring in rings:
-            if c in ('building', 'cabin'):
-                for i in np.flatnonzero(near_line(ring, lx, ly, 30)): left[i].add(c)
-                for i in np.flatnonzero(near_line(ring, rx, ry, 30)): right[i].add(c)
-            for i in np.flatnonzero(inside(ring, lx, ly)): left[i].add(c)
-            for i in np.flatnonzero(inside(ring, rx, ry)): right[i].add(c)
+            if 'building' in tags:
+                for i in np.flatnonzero(near_line(ring, lx, ly, 30)): left[i].add(tok)
+                for i in np.flatnonzero(near_line(ring, rx, ry, 30)): right[i].add(tok)
+            for i in np.flatnonzero(inside(ring, lx, ly)): left[i].add(tok)
+            for i in np.flatnonzero(inside(ring, rx, ry)): right[i].add(tok)
         for line in lines:
-            dist = 40 if c in ('stream', 'power') else 20
-            for i in np.flatnonzero(near_line(line, lx, ly, dist)): left[i].add(c)
-            for i in np.flatnonzero(near_line(line, rx, ry, dist)): right[i].add(c)
+            dist = 40 if 'waterway' in tags or 'power' in tags else 20
+            for i in np.flatnonzero(near_line(line, lx, ly, dist)): left[i].add(tok)
+            for i in np.flatnonzero(near_line(line, rx, ry, dist)): right[i].add(tok)
     j = lambda s: '+'.join(sorted(s))
     return [j(s) for s in left], [j(s) for s in right]
 
@@ -528,7 +529,7 @@ def main():
     xs, ys, s, cos0 = resample(lat, lon, STEP)
     hx, hy = heading(xs, ys); nx, ny = -hy, hx
     lx, ly, rx, ry = xs + SIDE * nx, ys + SIDE * ny, xs - SIDE * nx, ys - SIDE * ny
-    scene = {'version': 1, 'step': STEP, 'n': len(xs), 'bearing': 'math (0 = east, counterclockwise), degrees'}
+    scene = {'version': 2, 'step': STEP, 'n': len(xs), 'bearing': 'math (0 = east, counterclockwise), degrees'}
     if not a.no_osm:
         print('OSM via Overpass', file=sys.stderr)
         els = overpass_tiles(xs, ys, cos0)

@@ -605,6 +605,15 @@
         confirmEl.hidden = false;
         listEl.hidden = true;
         confirmEl.innerHTML = `<div>${r.path}<span>${r.scene ? "scene built ✓" : "no scene data yet"}</span></div><div id="stats">reading…</div>`;
+        if (r.scene)
+          fetch(enc(r.path.replace(/\.gpx$/i, "") + ".scene.json"))
+            .then((s) => s.json())
+            .then((s) => {
+              if (!(s.version >= 2))
+                confirmEl.querySelector("span").textContent =
+                  "scene needs rebuild";
+            })
+            .catch(() => {});
         const btn = (t, fn) => {
           const b = document.createElement("button");
           b.textContent = t;
