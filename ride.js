@@ -5,7 +5,7 @@ export function startRide() {
 export function record(ride, z, live) {
   const now = Date.now();
   if (now - ride.lastSample < 1000) return;
-  ride.lastSample = now;
+  ride.lastSample = now - ride.lastSample < 2000 ? ride.lastSample + 1000 : now;
   ride.samples.push([now, z, live.power, live.cadence]);
 }
 
