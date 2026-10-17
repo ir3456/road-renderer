@@ -1,8 +1,22 @@
 {
   "osm": {
     "natural": {
-      "wood": "forest",
-      "tree_row": "forest",
+      "wood": {
+        "leaf_type": {
+          "needleleaved": "conifers",
+          "broadleaved": "broadleaf",
+          "mixed": "forest",
+          "*": "forest"
+        }
+      },
+      "tree_row": {
+        "leaf_type": {
+          "needleleaved": "conifers",
+          "broadleaved": "broadleaf",
+          "mixed": "forest",
+          "*": "forest"
+        }
+      },
       "scrub": "scrub",
       "heath": "scrub",
       "grassland": "meadow",
@@ -15,7 +29,14 @@
       "stone": "rocky",
       "water": null,
       "shrubbery": null,
-      "tree": null,
+      "tree": {
+        "leaf_type": {
+          "needleleaved": "pinetree",
+          "broadleaved": "leaftree",
+          "mixed": "leaftree",
+          "*": "leaftree"
+        }
+      },
       "tundra": null,
       "moor": null,
       "wetland": null,
@@ -124,7 +145,15 @@
       "farm": "house",
       "barn": "house",
       "garage": "house",
-      "yes": "house",
+      "yes": {
+        "landuse": {
+          "residential": "house",
+          "commercial": "commercial",
+          "retail": "commercial",
+          "industrial": "industrial",
+          "*": "house"
+        }
+      },
       "apartments": "building",
       "residential": "building",
       "semidetached_house": "building",
@@ -138,13 +167,13 @@
       "stilt_house": "building",
       "tree_house": "building",
       "trullo": "building",
-      "commercial": "building",
-      "industrial": "building",
-      "kiosk": "building",
-      "office": "building",
-      "retail": "building",
-      "supermarket": "building",
-      "warehouse": "building",
+      "commercial": "commercial",
+      "industrial": "industrial",
+      "kiosk": "commercial",
+      "office": "commercial",
+      "retail": "commercial",
+      "supermarket": "commercial",
+      "warehouse": "industrial",
       "religious": "building",
       "cathedral": "building",
       "chapel": "building",
@@ -215,7 +244,15 @@
       "tent": "building",
       "tower": "building",
       "windmill": "building",
-      "*": "building"
+      "*": {
+        "landuse": {
+          "residential": "house",
+          "commercial": "commercial",
+          "retail": "commercial",
+          "industrial": "industrial",
+          "*": "building"
+        }
+      }
     },
     "barrier": {
       "fence": null,
@@ -233,16 +270,62 @@
     },
     "power": {
       "line": null
+    },
+    "highway": {
+      "street_lamp": "lamp",
+      "bus_stop": "busstop",
+      "crossing": "crossing",
+      "traffic_signals": null,
+      "stop": null,
+      "give_way": null,
+      "turning_circle": null,
+      "speed_camera": null,
+      "milestone": null,
+      "elevator": null
+    },
+    "amenity": {
+      "bench": "bench",
+      "waste_basket": null,
+      "bicycle_parking": null,
+      "drinking_water": null,
+      "post_box": null,
+      "vending_machine": null
+    },
+    "emergency": {
+      "fire_hydrant": "hydrant",
+      "phone": null,
+      "defibrillator": null
     }
   },
   "sets": {
-    "forest": { "sprites": ["pine", "pine", "tree"], "density": 1.0 },
-    "scrub": { "sprites": ["bush", "bush", "tree"], "density": 0.5 },
-    "meadow": { "sprites": ["bush"], "density": 0.1 },
-    "farm": { "sprites": ["bush"], "density": 0.05 },
-    "rocky": { "sprites": ["rock", "rock", "bush"], "density": 0.4 },
-    "cliff": { "sprites": ["rock", "rock", "bush"], "density": 0.6 },
-    "stream": { "sprites": ["bush", "tree", "rock"], "density": 0.4 },
+    "forest": {
+      "sprites": ["pine", "pine", "tree"],
+      "density": 1.0
+    },
+    "scrub": {
+      "sprites": ["bush", "bush", "tree"],
+      "density": 0.5
+    },
+    "meadow": {
+      "sprites": ["bush"],
+      "density": 0.1
+    },
+    "farm": {
+      "sprites": ["bush"],
+      "density": 0.05
+    },
+    "rocky": {
+      "sprites": ["rock", "rock", "bush"],
+      "density": 0.4
+    },
+    "cliff": {
+      "sprites": ["rock", "rock", "bush"],
+      "density": 0.6
+    },
+    "stream": {
+      "sprites": ["bush", "tree", "rock"],
+      "density": 0.4
+    },
     "urban": {
       "sprites": ["building", "building", "sign"],
       "density": 0.5,
@@ -253,7 +336,50 @@
       "density": 0.5,
       "far": true
     },
-    "building": { "sprites": ["building"], "density": 0.6, "far": true }
+    "building": {
+      "sprites": ["building"],
+      "density": 0.6,
+      "far": true
+    },
+    "conifers": {
+      "sprites": ["pine", "pine", "pine", "tree"],
+      "density": 1.0
+    },
+    "broadleaf": {
+      "sprites": ["tree", "tree", "tree", "pine"],
+      "density": 1.0
+    },
+    "pinetree": {
+      "sprites": ["pine"]
+    },
+    "leaftree": {
+      "sprites": ["tree"]
+    },
+    "commercial": {
+      "sprites": ["commercial"],
+      "density": 0.6,
+      "far": true
+    },
+    "industrial": {
+      "sprites": ["industrial"],
+      "density": 0.6,
+      "far": true
+    },
+    "lamp": {
+      "sprites": ["street_lamp"]
+    },
+    "busstop": {
+      "sprites": ["bus_stop"]
+    },
+    "crossing": {
+      "sprites": ["crossing"]
+    },
+    "bench": {
+      "sprites": ["bench"]
+    },
+    "hydrant": {
+      "sprites": ["fire_hydrant"]
+    }
   },
   "sprites": {
     "pine": ["pine_1"],
@@ -273,6 +399,13 @@
     "turnL": ["left_turn_sign"],
     "turnR": ["right_turn_sign"],
     "uphill": ["uphill_sign"],
-    "downhill": ["downhill_sign"]
+    "downhill": ["downhill_sign"],
+    "commercial": ["building"],
+    "industrial": ["building"],
+    "street_lamp": ["street_lamp"],
+    "bus_stop": ["bus_stop"],
+    "crossing": ["crossing"],
+    "bench": ["bench"],
+    "fire_hydrant": ["fire_hydrant"]
   }
 }

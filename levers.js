@@ -285,6 +285,13 @@ export const LEVERS = [
     rebuild: true,
   },
   {
+    key: "mapPoints",
+    label: "Mapped trees & street furniture",
+    options: { on: "On", off: "Off" },
+    def: "on",
+    rebuild: true,
+  },
+  {
     key: "juncMin",
     label: "Smallest side road drawn",
     options: {

@@ -37,28 +37,40 @@ function lookup(section, v) {
   return section["*"];
 }
 
+const parseTags = (el) =>
+  Object.fromEntries(
+    el
+      .split(";")
+      .map((kv) => [
+        kv.slice(0, kv.indexOf("=")),
+        kv.slice(kv.indexOf("=") + 1),
+      ]),
+  );
+
+/** The set name one element's tags resolve to: the first section of classes.json in file order that matches one of its tags, following nested lookups on other tags of the same element; null when ignored. */
+function resolve(t) {
+  for (const key in CLASSES.osm) {
+    if (!(key in t)) continue;
+    let v = lookup(CLASSES.osm[key], t[key]);
+    while (v && typeof v === "object") {
+      const k = Object.keys(v)[0];
+      v = k in t ? lookup(v[k], t[k]) : v[k]["*"];
+    }
+    if (v !== undefined) return v;
+  }
+  return null;
+}
+
 const setCache = new Map();
-/** The sets a sample side's OSM tag string resolves to, one entry per set: per element, the first section of classes.json in file order that matches one of its tags, null meaning ignored. */
+/** The area sets a sample side's OSM tag string resolves to, one entry per set. */
 function sets(tags) {
   if (setCache.has(tags)) return setCache.get(tags);
   const out = [];
   for (const el of tags.split("+")) {
-    const t = Object.fromEntries(
-      el
-        .split(";")
-        .map((kv) => [
-          kv.slice(0, kv.indexOf("=")),
-          kv.slice(kv.indexOf("=") + 1),
-        ]),
-    );
-    let name;
-    for (const key in CLASSES.osm) {
-      if (!(key in t)) continue;
-      name = lookup(CLASSES.osm[key], t[key]);
-      if (name !== undefined) break;
-    }
-    const set = name && CLASSES.sets[name];
-    if (set?.sprites && !out.some((o) => o.name === name))
+    const t = parseTags(el),
+      name = resolve(t),
+      set = name && CLASSES.sets[name];
+    if (set?.density && !out.some((o) => o.name === name))
       out.push({ ...set, name, levels: +t["building:levels"] || set.levels });
   }
   setCache.set(tags, out);
@@ -199,6 +211,28 @@ export function applyScene(road, scene, P) {
           return l || r ? [l, r] : null;
         })
       : null;
+  const points = [],
+    mapped = {};
+  if (P.mapPoints === "on" && scene.pts)
+    for (const [si, off, tags] of scene.pts) {
+      const i = Math.round((si * scene.step) / road.L),
+        t = parseTags(tags),
+        name = resolve(t),
+        set = name && CLASSES.sets[name];
+      if (i < 0 || i >= road.n || !set?.sprites) continue;
+      const kind = set.sprites[Math.floor(hash(i, 9) * set.sprites.length)],
+        side = off > 0 ? -1 : 1,
+        hw = road.hw ? road.hw[i] : 4;
+      points.push({
+        i,
+        kind,
+        offset: side * Math.max(1.5, Math.abs(off) - hw),
+        meters: parseFloat(t.height) || undefined,
+      });
+      const near = (mapped[kind + side] ||= new Uint8Array(road.n)),
+        r = Math.round(50 / road.L);
+      near.fill(1, Math.max(0, i - r), i + r + 1);
+    }
   for (let i = 0; i < road.n; i++) {
     const j = at(i);
     let list = null;
@@ -218,6 +252,7 @@ export function applyScene(road, scene, P) {
         if (pick <= 0) break;
       }
       const kind = o.sprites[Math.floor(hash(i, side + 6) * o.sprites.length)];
+      if (mapped[kind + side]?.[i]) continue;
       const offset =
           side *
           (o.far ? 8 + hash(i, side + 4) * 20 : 2 + hash(i, side + 4) * 14),
@@ -238,6 +273,7 @@ export function applyScene(road, scene, P) {
     if (roadTag) (list ||= []).push({ kind: roadTag, offset: 0 });
     road.props[i] = list;
   }
+  for (const { i, ...prop } of points) (road.props[i] ||= []).push(prop);
   for (const s of signs)
     if (s.k >= 0 && s.k < road.n)
       (road.props[s.k] ||= []).push({

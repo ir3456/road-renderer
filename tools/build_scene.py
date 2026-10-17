@@ -29,7 +29,9 @@ DEM10 = ('dem10', 0.05, 557)   # layer name, tile size (deg), pixels per tile
 DEM60 = ('dem60', 0.5, 928)
 OSM_DEG = 0.02
 OSM_LAYER = 'osm2'
-fetched = {'dem10': 0, 'dem60': 0, OSM_LAYER: 0}
+NODE_LAYER = 'osmn'
+NODE_QUERY = 'node{bb}[natural=tree];node{bb}[highway~"^(street_lamp|bus_stop|crossing)$"];node{bb}[amenity=bench];node{bb}[emergency=fire_hydrant];'
+fetched = {'dem10': 0, 'dem60': 0, OSM_LAYER: 0, NODE_LAYER: 0}
 HWY_RANK = {'motorway': 6, 'trunk': 6, 'primary': 5, 'secondary': 4, 'tertiary': 3, 'residential': 2, 'unclassified': 2, 'living_street': 1, 'service': 1, 'pedestrian': 1, 'track': 0, 'cycleway': 0, 'path': 0, 'footway': 0, 'bridleway': 0, 'steps': 0}
 HWY_WIDTH = {'motorway': 14, 'trunk': 12, 'primary': 9, 'secondary': 9, 'tertiary': 8, 'residential': 8, 'unclassified': 7.5, 'living_street': 6, 'service': 4, 'pedestrian': 5, 'track': 3.5, 'cycleway': 3, 'path': 2.5, 'footway': 2, 'bridleway': 2.5, 'steps': 2}
 
@@ -110,6 +112,14 @@ def overpass_tiles(xs, ys, cos0):
                 if small: els += overpass(f'rel(id:{",".join(map(str, small))});out geom;')
             except RuntimeError: raise SystemExit(f'Overpass failed for tile {i}_{j}; rerun to resume from the tile cache')
             json.dump({'elements': els}, open(path, 'w'), separators=(',', ':')); fetched[OSM_LAYER] += 1
+        npath = tile_path(NODE_LAYER, i, j, 'json')
+        if os.path.exists(npath): els += json.load(open(npath))['elements']
+        else:
+            print(f'  node tile {i}_{j} ({n + 1}/{len(tiles)})', file=sys.stderr)
+            bb = f'({i * OSM_DEG:.5f},{j * OSM_DEG:.5f},{(i + 1) * OSM_DEG:.5f},{(j + 1) * OSM_DEG:.5f})'
+            try: nodes = overpass('(' + NODE_QUERY.replace('{bb}', bb) + ');out;')
+            except RuntimeError: raise SystemExit(f'Overpass failed for node tile {i}_{j}; rerun to resume from the tile cache')
+            json.dump({'elements': nodes}, open(npath, 'w'), separators=(',', ':')); fetched[NODE_LAYER] += 1; els += nodes
         for e in els: elements[(e['type'], e['id'])] = e
     return list(elements.values())
 
@@ -176,7 +186,19 @@ def line_dist(line, px, py, pad):
 def near_line(line, px, py, dist): return line_dist(line, px, py, dist) <= dist
 
 
-OSM_KEYS = list(json.load(open(os.path.join(os.path.dirname(TILES), 'classes.json')))['osm'])
+def osm_keys(section, keys):
+    """Every OSM key named in a classes.json osm section, including keys of nested lookups."""
+    for v in section.values():
+        if isinstance(v, dict):
+            for k, sub in v.items(): keys.add(k); osm_keys(sub, keys)
+    return keys
+OSM_KEYS = sorted(osm_keys({'': json.load(open(os.path.join(os.path.dirname(TILES), 'classes.json')))['osm']}, set()))
+POINT_REACH = 40
+
+
+def token(tags):
+    """The tags of one element that classes.json knows, as key=value joined by ';'."""
+    return ';'.join(f"{k}={tags[k].split(';')[0].replace('+', '_').replace('=', '_')}" for k in OSM_KEYS if k in tags)
 
 
 def classify(tags):
@@ -192,13 +214,18 @@ def classify(tags):
 
 
 def osm_tags(elements, xs, ys, cos0, lx, ly, rx, ry):
-    """Per sample side, the OSM tags (keys listed in classes.json) of every element within reach: elements joined by '+', one element's tags by ';'. Polygons by point-in-polygon at the side sample, buildings also within 30 m, waterway and power lines within 40 m, other lines 20 m."""
+    """Per sample side, the OSM tags (keys named in classes.json) of every way within reach: elements joined by '+', one element's tags by ';'. Polygons by point-in-polygon at the side sample, buildings also within 30 m, waterway and power lines within 40 m, other lines 20 m. A building inside a landuse polygon carries that landuse too."""
     left = [set() for _ in xs]; right = [set() for _ in xs]
+    zones = [(ring, e['tags']['landuse']) for e in elements if 'landuse' in e.get('tags', {}) and 'highway' not in e['tags'] for ring in rings_of(e, cos0)[0]]
     for e in elements:
-        tags = e.get('tags', {}); keys = [k for k in OSM_KEYS if k in tags]
-        if not keys or 'highway' in tags: continue
-        tok = ';'.join(f"{k}={tags[k].split(';')[0].replace('+', '_').replace('=', '_')}" for k in keys)
+        tags = e.get('tags', {})
+        if e['type'] == 'node' or 'highway' in tags or not any(k in tags for k in OSM_KEYS): continue
         rings, lines = rings_of(e, cos0)
+        if 'building' in tags and 'landuse' not in tags and rings:
+            c = rings[0].mean(axis=0)
+            for ring, v in zones:
+                if inside(ring, c[:1], c[1:])[0]: tags = {**tags, 'landuse': v}; break
+        tok = token(tags)
         for ring in rings:
             if 'building' in tags:
                 for i in np.flatnonzero(near_line(ring, lx, ly, 30)): left[i].add(tok)
@@ -211,6 +238,22 @@ def osm_tags(elements, xs, ys, cos0, lx, ly, rx, ry):
             for i in np.flatnonzero(near_line(line, rx, ry, dist)): right[i].add(tok)
     j = lambda s: '+'.join(sorted(s))
     return [j(s) for s in left], [j(s) for s in right]
+
+
+def osm_points(elements, xs, ys, cos0, hx, hy, nx, ny):
+    """Mapped point features (trees, lamps, stops, benches, hydrants): [sample index, lateral m with left positive, tags] for every pass of the route within POINT_REACH."""
+    out = []
+    for e in elements:
+        tags = e.get('tags', {})
+        if e['type'] != 'node' or 'lat' not in e or not any(k in tags for k in OSM_KEYS): continue
+        px, py = R * math.radians(e['lon']) * cos0, R * math.radians(e['lat'])
+        d2 = (xs - px) ** 2 + (ys - py) ** 2; idx = np.flatnonzero(d2 < POINT_REACH ** 2)
+        if not len(idx): continue
+        tok = token(tags)
+        for run in np.split(idx, np.flatnonzero(np.diff(idx) > 3) + 1):
+            i = run[np.argmin(d2[run])]; dx, dy = px - xs[i], py - ys[i]
+            out.append([round(float(i + (dx * hx[i] + dy * hy[i]) / STEP), 1), round(float(dx * nx[i] + dy * ny[i]), 1), tok])
+    return out
 
 
 TRAIL = {'cycleway', 'pedestrian'}
@@ -534,13 +577,14 @@ def main():
         print('OSM via Overpass', file=sys.stderr)
         els = overpass_tiles(xs, ys, cos0)
         scene['left'], scene['right'] = osm_tags(els, xs, ys, cos0, lx, ly, rx, ry)
+        scene['pts'] = osm_points(els, xs, ys, cos0, hx, hy, nx, ny)
         scene['waterL'], scene['waterR'] = water_sides(els, cos0, xs, ys, nx, ny)
         hwys = highways(els, cos0); match = match_route(hwys, xs, ys)
         scene['sideL'], scene['sideR'] = side_ways(hwys, match, xs, ys, hx, hy, nx, ny)
         if (match >= 0).any():
             ids = sorted(set(match.tolist())); scene['ways'] = [way_info(hwys[w][0]['tags']) for w in ids]; scene['way'] = [ids.index(w) for w in match.tolist()]
             scene['road'] = ['tunnel' if 'tunnel' in scene['ways'][w] else 'bridge' if 'bridge' in scene['ways'][w] else '' for w in scene['way']]
-            signals = [(e['tags']['highway'], R * math.radians(e['lon']) * cos0, R * math.radians(e['lat'])) for e in els if e['type'] == 'node' and 'lat' in e]
+            signals = [(e['tags']['highway'], R * math.radians(e['lon']) * cos0, R * math.radians(e['lat'])) for e in els if e['type'] == 'node' and 'lat' in e and 'highway' in e.get('tags', {})]
             lvl = [level(hwys[w][0]['tags']) for w in match]
             scene['xings'] = [x for x in crossings(hwys, match, xs, ys, signals) if x.pop('lvl') == lvl[x['i']]]
             scene['xings'] = sorted(scene['xings'] + water_crossings(els, cos0, xs, ys), key=lambda x: x['i'])

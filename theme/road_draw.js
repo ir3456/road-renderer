@@ -178,8 +178,19 @@ export function drawRoad(ctx, frame, P, pal) {
   }
 }
 
-function blit(ctx, s, sx, sy, ppm, clipY, frame = 0, flip = false, levels) {
-  const sh = Math.round(s.meters * ppm);
+function blit(
+  ctx,
+  s,
+  sx,
+  sy,
+  ppm,
+  clipY,
+  frame = 0,
+  flip = false,
+  levels,
+  meters = s.meters,
+) {
+  const sh = Math.round(meters * ppm);
   if (sh < 1) return;
   if (s.stack) {
     const piece = { ...s, stack: false },
@@ -463,6 +474,7 @@ export function drawSprites(ctx, frame, P, assets, kinds, pal) {
         0,
         s.flip && sp.offset > 0,
         sp.levels,
+        sp.meters,
       );
     }
   }
