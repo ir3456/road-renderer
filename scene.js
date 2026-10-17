@@ -111,6 +111,7 @@ export function placeholderScene(road, P) {
     road.junc =
     road.xings =
     road.water =
+    road.xwalk =
       null;
 }
 
@@ -145,6 +146,7 @@ export function applyScene(road, scene, P) {
     road.junc =
     road.xings =
     road.water =
+    road.xwalk =
       null;
   if (P.mapRoads === "on" && scene.ways) {
     const hw = new Array(road.n);
@@ -223,6 +225,14 @@ export function applyScene(road, scene, P) {
       const kind = set.sprites[Math.floor(hash(i, 9) * set.sprites.length)],
         side = off > 0 ? -1 : 1,
         hw = road.hw ? road.hw[i] : 4;
+      if (kind === "crossing") {
+        (road.xwalk ||= new Uint8Array(road.n)).fill(
+          1,
+          Math.max(0, i - 1),
+          Math.min(road.n, i + 2),
+        );
+        continue;
+      }
       points.push({
         i,
         kind,

@@ -170,6 +170,7 @@ export function project(road, playerZ, P, W, H, actors = []) {
     oneway: road.oneway,
     junc: road.junc,
     water: road.water,
+    xwalk: road.xwalk,
     xings: road.xings,
     quads,
     skyline,

@@ -90,5 +90,29 @@
     "anchorY": 64,
     "meters": 14,
     "faceRoad": true
+  },
+  "street_lamp": {
+    "file": "street_lamp.png",
+    "anchorX": 4.0,
+    "anchorY": 48,
+    "meters": 6
+  },
+  "bus_stop": {
+    "file": "bus_stop.png",
+    "anchorX": 6.0,
+    "anchorY": 36,
+    "meters": 2.8
+  },
+  "bench": {
+    "file": "bench.png",
+    "anchorX": 10.0,
+    "anchorY": 10,
+    "meters": 1
+  },
+  "fire_hydrant": {
+    "file": "fire_hydrant.png",
+    "anchorX": 3.0,
+    "anchorY": 12,
+    "meters": 0.9
   }
 }

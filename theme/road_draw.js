@@ -146,6 +146,19 @@ export function drawRoad(ctx, frame, P, pal) {
       }
     ctx.fillStyle = mix(pal, (pal[kind] || pal.road)[alt], fog);
     quad(a.sx, a.sy, a.sw, b.sx, b.sy, b.sw);
+    if (frame.xwalk?.[i]) {
+      ctx.fillStyle = mix(pal, [240, 240, 240], fog);
+      for (let f = -1; f < 1; f += 0.25)
+        quad(
+          a.sx + (f + 0.0625) * a.sw,
+          a.sy,
+          a.sw * 0.0625,
+          b.sx + (f + 0.0625) * b.sw,
+          b.sy,
+          b.sw * 0.0625,
+        );
+      continue;
+    }
     if (kind !== "road") continue;
     const ew = pal.edgeWidth;
     ctx.fillStyle = mix(pal, pal.edge[alt], fog);

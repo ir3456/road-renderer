@@ -57,6 +57,28 @@ def signal(x, y):
         return (30, 30, 30, 255)
     return None
 
+def street_lamp(x, y):
+    if y >= 6 and 3 <= x < 5: return (120, 120, 120, 255)
+    if y < 6 and 2 <= x < 8: return (240, 220, 120, 255) if y >= 2 else (80, 80, 80, 255)
+    return None
+
+def bus_stop(x, y):
+    if y >= 12 and 5 <= x < 7: return (120, 120, 120, 255)
+    if y < 12: return (255, 255, 255, 255) if 3 <= x < 9 and 3 <= y < 9 else (40, 80, 200, 255)
+    return None
+
+def bench(x, y):
+    if y < 3: return (150, 100, 50, 255)
+    if 3 <= y < 5: return (180, 120, 60, 255)
+    if 1 <= x < 3 or 17 <= x < 19: return (60, 50, 40, 255)
+    return None
+
+def fire_hydrant(x, y):
+    if y < 2: return (200, 40, 40, 255) if 2 <= x < 4 else None
+    if 5 <= y < 7: return (200, 40, 40, 255)
+    if 1 <= x < 5: return (220, 50, 50, 255) if x < 3 else (170, 30, 30, 255)
+    return None
+
 def building(x, y):
     """Front face 0..49, side face 50..63 receding to a vanishing point at eye level (y 56, 96 px right of the corner)."""
     if x < 50:
@@ -135,6 +157,10 @@ sprites = {
     'stopsign': (12, 36, stopsign, 2.4),
     'signal':   (10, 48, signal,   4.5),
     'building': (64, 64, building, 14, True),
+    'street_lamp': (8, 48, street_lamp, 6),
+    'bus_stop': (12, 36, bus_stop, 2.8),
+    'bench': (20, 10, bench, 1),
+    'fire_hydrant': (6, 12, fire_hydrant, 0.9),
 }
 manifest = {}
 for name, (w, h, fn, meters, *face) in sprites.items():
