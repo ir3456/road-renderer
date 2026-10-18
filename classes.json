@@ -327,18 +327,16 @@
       "density": 0.4
     },
     "urban": {
-      "sprites": ["building", "building", "sign"],
-      "density": 0.5,
+      "sprites": ["sign"],
+      "density": 0.15,
       "far": true
     },
     "house": {
-      "sprites": ["cabin", "cabin", "tree"],
-      "density": 0.5,
+      "sprites": ["cabin"],
       "far": true
     },
     "building": {
       "sprites": ["building"],
-      "density": 0.6,
       "far": true
     },
     "conifers": {
@@ -357,12 +355,10 @@
     },
     "commercial": {
       "sprites": ["commercial"],
-      "density": 0.6,
       "far": true
     },
     "industrial": {
       "sprites": ["industrial"],
-      "density": 0.6,
       "far": true
     },
     "lamp": {
