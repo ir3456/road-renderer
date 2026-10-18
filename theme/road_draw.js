@@ -126,24 +126,23 @@ export function drawRoad(ctx, frame, P, pal) {
     ctx.fillRect(0, Math.round(b.sy), W, Math.round(a.sy) - Math.round(b.sy));
     const wt = frame.water && frame.water[i];
     if (wt)
-      for (const side of [-1, 1]) {
-        const v = wt[side < 0 ? 0 : 1];
-        if (!v) continue;
-        ctx.fillStyle = mix(
-          pal,
-          (v[2] ? pal[v[2]] || pal.road : pal.water)[alt],
-          fog,
-        );
-        strip(
-          ctx,
-          a.sx + side * Math.max(a.sw, v[0] * a.ppm),
-          a.sx + side * v[1] * a.ppm,
-          a.sy,
-          b.sx + side * Math.max(b.sw, v[0] * b.ppm),
-          b.sx + side * v[1] * b.ppm,
-          b.sy,
-        );
-      }
+      for (const side of [-1, 1])
+        for (const v of wt[side < 0 ? 0 : 1] || []) {
+          ctx.fillStyle = mix(
+            pal,
+            (v[2] ? pal[v[2]] || pal.road : pal.water)[alt],
+            fog,
+          );
+          strip(
+            ctx,
+            a.sx + side * Math.max(a.sw, v[0] * a.ppm),
+            a.sx + side * v[1] * a.ppm,
+            a.sy,
+            b.sx + side * Math.max(b.sw, v[0] * b.ppm),
+            b.sx + side * v[1] * b.ppm,
+            b.sy,
+          );
+        }
     ctx.fillStyle = mix(pal, (pal[kind] || pal.road)[alt], fog);
     quad(a.sx, a.sy, a.sw, b.sx, b.sy, b.sw);
     if (frame.xwalk?.[i]) {
@@ -434,8 +433,8 @@ export function drawSprites(ctx, frame, P, assets, kinds, pal) {
             side,
             pal,
             profD,
-            wv ? wv[1] : 0,
-            wq ? wq[1] : 0,
+            wv ? wv[wv.length - 1][1] : 0,
+            wq ? wq[wq.length - 1][1] : 0,
           );
         else if (mode === "wall")
           wall(
@@ -474,7 +473,7 @@ export function drawSprites(ctx, frame, P, assets, kinds, pal) {
       const d = p.hw + Math.abs(sp.offset),
         wv = water && water[base + k]?.[sp.offset < 0 ? 0 : 1];
       const lift =
-        mode !== "off" && h && !(wv && d <= wv[1])
+        mode !== "off" && h && !(wv && d <= wv[wv.length - 1][1])
           ? heightAt(h[sp.offset < 0 ? 0 : 1], profD, d) * P.terrainScale * ppm
           : 0;
       blit(

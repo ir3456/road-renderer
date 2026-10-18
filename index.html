@@ -609,7 +609,7 @@
           fetch(enc(r.path.replace(/\.gpx$/i, "") + ".scene.json"))
             .then((s) => s.json())
             .then((s) => {
-              if (!(s.version >= 2))
+              if (!(s.version >= 3))
                 confirmEl.querySelector("span").textContent =
                   "scene needs rebuild";
             })

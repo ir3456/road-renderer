@@ -198,11 +198,17 @@ export function applyScene(road, scene, P) {
   }
   const band = (j, wl, sl) => {
     const w = P.water === "on" && wl?.[j],
-      v = P.sideWays === "on" && sl?.[j],
-      c = v && (v[0] + v[1]) / 2,
-      hw = v && ((v[1] - v[0]) / 2) * P.roadScale,
-      s = v && [Math.max(0, c - hw), c + hw, v[2]];
-    return w && s ? (w[0] <= s[0] ? w : s) : w || s || null;
+      v = (P.sideWays === "on" && sl?.[j]) || [],
+      ways = v.length && !Array.isArray(v[0]) ? [v] : v,
+      out = [
+        ...(w ? [w] : []),
+        ...ways.map(([n, f, kind]) => {
+          const c = (n + f) / 2,
+            hw = ((f - n) / 2) * P.roadScale;
+          return [Math.max(0, c - hw), c + hw, kind];
+        }),
+      ].sort((a, b) => a[0] - b[0]);
+    return out.length ? out : null;
   };
   road.water =
     scene.waterL || scene.sideL
@@ -222,7 +228,7 @@ export function applyScene(road, scene, P) {
         name = resolve(t),
         set = name && CLASSES.sets[name];
       if (i < 0 || i >= road.n || !set?.sprites) continue;
-      const kind = set.sprites[Math.floor(hash(i, 9) * set.sprites.length)],
+      const kind = set.sprites[0],
         side = off > 0 ? -1 : 1,
         hw = road.hw ? road.hw[i] : 4;
       if (kind === "crossing") {
@@ -238,6 +244,7 @@ export function applyScene(road, scene, P) {
         kind,
         offset: side * Math.max(1.5, Math.abs(off) - hw),
         meters: parseFloat(t.height) || undefined,
+        levels: +t["building:levels"] || set.levels,
       });
       const near = (mapped[kind + side] ||= new Uint8Array(road.n)),
         r = Math.round(50 / road.L);
@@ -268,7 +275,7 @@ export function applyScene(road, scene, P) {
           (o.far ? 8 + hash(i, side + 4) * 20 : 2 + hash(i, side + 4) * 14),
         wv = road.water?.[i]?.[side < 0 ? 0 : 1],
         d = (road.hw ? road.hw[i] : 4) + Math.abs(offset);
-      if (wv && d > wv[0] - 2 && d < wv[1] + 2) continue;
+      if (wv?.some((b) => d > b[0] - 2 && d < b[1] + 2)) continue;
       (list ||= []).push({ kind, offset, levels: o.levels });
     }
     if (road.prof) {

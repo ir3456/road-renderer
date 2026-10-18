@@ -213,19 +213,28 @@ def classify(tags):
     return None
 
 
+def landuse_zones(elements, cos0):
+    return [(ring, e['tags']['landuse']) for e in elements if 'landuse' in e.get('tags', {}) and 'highway' not in e['tags'] for ring in rings_of(e, cos0)[0]]
+
+
+def zoned(tags, rings, zones):
+    """A building's tags plus the landuse of the zone polygon its centroid lies in, when it has none of its own."""
+    if 'building' not in tags or 'landuse' in tags or not rings: return tags
+    c = rings[0].mean(axis=0)
+    for ring, v in zones:
+        if inside(ring, c[:1], c[1:])[0]: return {**tags, 'landuse': v}
+    return tags
+
+
 def osm_tags(elements, xs, ys, cos0, lx, ly, rx, ry):
     """Per sample side, the OSM tags (keys named in classes.json) of every way within reach: elements joined by '+', one element's tags by ';'. Polygons by point-in-polygon at the side sample, buildings also within 30 m, waterway and power lines within 40 m, other lines 20 m. A building inside a landuse polygon carries that landuse too."""
     left = [set() for _ in xs]; right = [set() for _ in xs]
-    zones = [(ring, e['tags']['landuse']) for e in elements if 'landuse' in e.get('tags', {}) and 'highway' not in e['tags'] for ring in rings_of(e, cos0)[0]]
+    zones = landuse_zones(elements, cos0)
     for e in elements:
         tags = e.get('tags', {})
         if e['type'] == 'node' or 'highway' in tags or not any(k in tags for k in OSM_KEYS): continue
         rings, lines = rings_of(e, cos0)
-        if 'building' in tags and 'landuse' not in tags and rings:
-            c = rings[0].mean(axis=0)
-            for ring, v in zones:
-                if inside(ring, c[:1], c[1:])[0]: tags = {**tags, 'landuse': v}; break
-        tok = token(tags)
+        tok = token(zoned(tags, rings, zones))
         for ring in rings:
             if 'building' in tags:
                 for i in np.flatnonzero(near_line(ring, lx, ly, 30)): left[i].add(tok)
@@ -241,13 +250,18 @@ def osm_tags(elements, xs, ys, cos0, lx, ly, rx, ry):
 
 
 def osm_points(elements, xs, ys, cos0, hx, hy, nx, ny):
-    """Mapped point features (trees, lamps, stops, benches, hydrants): [sample index, lateral m with left positive, tags] for every pass of the route within POINT_REACH."""
-    out = []
+    """Mapped point features: nodes (trees, lamps, stops, benches, hydrants) within POINT_REACH and buildings by centroid within 60 m, as [sample index, lateral m with left positive, tags], one entry per pass of the route."""
+    zones = landuse_zones(elements, cos0); out = []
     for e in elements:
         tags = e.get('tags', {})
-        if e['type'] != 'node' or 'lat' not in e or not any(k in tags for k in OSM_KEYS): continue
-        px, py = R * math.radians(e['lon']) * cos0, R * math.radians(e['lat'])
-        d2 = (xs - px) ** 2 + (ys - py) ** 2; idx = np.flatnonzero(d2 < POINT_REACH ** 2)
+        if not any(k in tags for k in OSM_KEYS): continue
+        if e['type'] == 'node' and 'lat' in e: px, py = R * math.radians(e['lon']) * cos0, R * math.radians(e['lat']); reach = POINT_REACH
+        elif 'building' in tags:
+            rings = rings_of(e, cos0)[0]
+            if not rings: continue
+            (px, py), reach, tags = rings[0].mean(axis=0), 60, zoned(tags, rings, zones)
+        else: continue
+        d2 = (xs - px) ** 2 + (ys - py) ** 2; idx = np.flatnonzero(d2 < reach ** 2)
         if not len(idx): continue
         tok = token(tags)
         for run in np.split(idx, np.flatnonzero(np.diff(idx) > 3) + 1):
@@ -459,18 +473,21 @@ SIDE_REACH = 50
 
 
 def side_ways(hwys, match, xs, ys, hx, hy, nx, ny):
-    """Per sample, left and right: [near, far, kind] m from the centerline of the nearest other highway running within 30 degrees of the route inside SIDE_REACH, or None."""
+    """Per sample, left and right: every other highway running within 30 degrees of the route inside SIDE_REACH as [near, far, kind] m from the centerline, nearest first."""
     route = np.column_stack([xs, ys]); normal = np.column_stack([nx, ny]) * SIDE_REACH
-    best = [[None] * len(xs), [None] * len(xs)]
+    hits = {}
     for wi, (e, line) in enumerate(hwys):
         info = way_info(e['tags']); sg = np.diff(line, axis=0); sg /= np.maximum(1e-9, np.hypot(*sg.T))[:, None]
         for si, s in enumerate((1, -1)):
             a, b, t, _ = ray_hits(route, s * normal, line, pad=0)
             ok = (match[a] != wi) & (np.abs(hx[a] * sg[b, 0] + hy[a] * sg[b, 1]) > 0.866)
             for i, d in zip(a[ok], t[ok] * SIDE_REACH):
-                iv = [round(max(0, d - info['width'] / 2), 1), round(d + info['width'] / 2, 1), info['kind']]
-                if best[si][i] is None or iv[0] < best[si][i][0]: best[si][i] = iv
-    return best
+                k = (si, int(i), wi)
+                if k not in hits or d < hits[k][0]: hits[k] = (d, info)
+    out = [[[] for _ in xs], [[] for _ in xs]]
+    for (si, i, _), (d, info) in sorted(hits.items(), key=lambda kv: kv[1][0]):
+        out[si][i].append([round(max(0, d - info['width'] / 2), 1), round(d + info['width'] / 2, 1), info['kind']])
+    return out
 
 
 # ---------------- DEM ----------------
@@ -572,7 +589,7 @@ def main():
     xs, ys, s, cos0 = resample(lat, lon, STEP)
     hx, hy = heading(xs, ys); nx, ny = -hy, hx
     lx, ly, rx, ry = xs + SIDE * nx, ys + SIDE * ny, xs - SIDE * nx, ys - SIDE * ny
-    scene = {'version': 2, 'step': STEP, 'n': len(xs), 'bearing': 'math (0 = east, counterclockwise), degrees'}
+    scene = {'version': 3, 'step': STEP, 'n': len(xs), 'bearing': 'math (0 = east, counterclockwise), degrees'}
     if not a.no_osm:
         print('OSM via Overpass', file=sys.stderr)
         els = overpass_tiles(xs, ys, cos0)
