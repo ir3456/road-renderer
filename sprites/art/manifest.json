@@ -1,5 +1,9 @@
 {
   "pxPerMeter": 5,
+  "house_1": {
+    "file": "house_1.png",
+    "faceRoad": true
+  },
   "pine_1": {
     "file": "pine_1.png"
   },
@@ -15,6 +19,9 @@
   "stop_sign": {
     "file": "stop_sign.png",
     "meters": 3
+  },
+  "fire_hydrant": {
+    "file": "fire_hydrant.png"
   },
   "left_turn_sign": {
     "file": "left_turn_sign.png",
@@ -34,6 +41,10 @@
   },
   "sky": {
     "file": "sky.png"
+  },
+  "street_lamp": {
+    "file": "street_lamp.png",
+    "meters": 4
   },
   "traffic_light": {
     "file": "traffic_light.png",

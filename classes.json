@@ -299,113 +299,230 @@
   },
   "sets": {
     "forest": {
-      "sprites": ["pine", "pine", "tree"],
+      "sprites": [
+        "pine",
+        "pine",
+        "tree"
+      ],
       "density": 1.0
     },
     "scrub": {
-      "sprites": ["bush", "bush", "tree"],
+      "sprites": [
+        "bush",
+        "bush",
+        "tree"
+      ],
       "density": 0.5
     },
     "meadow": {
-      "sprites": ["bush"],
+      "sprites": [
+        "bush"
+      ],
       "density": 0.1
     },
     "farm": {
-      "sprites": ["bush"],
+      "sprites": [
+        "bush"
+      ],
       "density": 0.05
     },
     "rocky": {
-      "sprites": ["rock", "rock", "bush"],
+      "sprites": [
+        "rock",
+        "rock",
+        "bush"
+      ],
       "density": 0.4
     },
     "cliff": {
-      "sprites": ["rock", "rock", "bush"],
+      "sprites": [
+        "rock",
+        "rock",
+        "bush"
+      ],
       "density": 0.6
     },
     "stream": {
-      "sprites": ["bush", "tree", "rock"],
+      "sprites": [
+        "bush",
+        "tree",
+        "rock"
+      ],
       "density": 0.4
     },
     "urban": {
-      "sprites": ["sign"],
+      "sprites": [
+        "sign"
+      ],
       "density": 0.15,
       "far": true
     },
     "house": {
-      "sprites": ["cabin"],
+      "sprites": [
+        "cabin"
+      ],
       "far": true
     },
     "building": {
-      "sprites": ["building"],
+      "sprites": [
+        "building"
+      ],
       "far": true
     },
     "conifers": {
-      "sprites": ["pine", "pine", "pine", "tree"],
+      "sprites": [
+        "pine",
+        "pine",
+        "pine",
+        "tree"
+      ],
       "density": 1.0
     },
     "broadleaf": {
-      "sprites": ["tree", "tree", "tree", "pine"],
+      "sprites": [
+        "tree",
+        "tree",
+        "tree",
+        "pine"
+      ],
       "density": 1.0
     },
     "pinetree": {
-      "sprites": ["pine"]
+      "sprites": [
+        "pine"
+      ]
     },
     "leaftree": {
-      "sprites": ["tree"]
+      "sprites": [
+        "tree"
+      ]
     },
     "commercial": {
-      "sprites": ["commercial"],
+      "sprites": [
+        "commercial"
+      ],
       "far": true
     },
     "industrial": {
-      "sprites": ["industrial"],
+      "sprites": [
+        "industrial"
+      ],
       "far": true
     },
     "lamp": {
-      "sprites": ["street_lamp"]
+      "sprites": [
+        "street_lamp"
+      ]
     },
     "busstop": {
-      "sprites": ["bus_stop"]
+      "sprites": [
+        "bus_stop"
+      ]
     },
     "crossing": {
-      "sprites": ["crossing"]
+      "sprites": [
+        "crossing"
+      ]
     },
     "bench": {
-      "sprites": ["bench"]
+      "sprites": [
+        "bench"
+      ]
     },
     "hydrant": {
-      "sprites": ["fire_hydrant"]
+      "sprites": [
+        "fire_hydrant"
+      ]
     },
     "anytree": {
-      "sprites": ["anytree"]
+      "sprites": [
+        "anytree"
+      ]
     }
   },
   "sprites": {
-    "pine": ["pine_1"],
-    "tree": ["tree_1", "tree_2", "tree_3"],
-    "bush": ["bush"],
-    "rock": ["rock"],
-    "sign": ["sign"],
-    "building": ["building"],
-    "cabin": ["cabin"],
-    "rider": ["bikeback"],
-    "ghost": ["bikeback"],
-    "bankL": ["bankL"],
-    "bankR": ["bankR"],
-    "rocktile": ["rocktile"],
-    "stopsign": ["stop_sign"],
-    "signal": ["traffic_light"],
-    "turnL": ["left_turn_sign"],
-    "turnR": ["right_turn_sign"],
-    "uphill": ["uphill_sign"],
-    "downhill": ["downhill_sign"],
-    "commercial": ["building"],
-    "industrial": ["building"],
-    "street_lamp": ["street_lamp"],
-    "bus_stop": ["bus_stop"],
-    "crossing": ["crossing"],
-    "bench": ["bench"],
-    "fire_hydrant": ["fire_hydrant"],
-    "anytree": ["tree_1", "tree_2", "tree_3", "pine_1"]
+    "pine": [
+      "pine_1"
+    ],
+    "tree": [
+      "tree_1",
+      "tree_2",
+      "tree_3"
+    ],
+    "bush": [
+      "bush"
+    ],
+    "rock": [
+      "rock"
+    ],
+    "sign": [
+      "sign"
+    ],
+    "building": [
+      "building"
+    ],
+    "cabin": [
+      "house_1"
+    ],
+    "rider": [
+      "bikeback"
+    ],
+    "ghost": [
+      "bikeback"
+    ],
+    "bankL": [
+      "bankL"
+    ],
+    "bankR": [
+      "bankR"
+    ],
+    "rocktile": [
+      "rocktile"
+    ],
+    "stopsign": [
+      "stop_sign"
+    ],
+    "signal": [
+      "traffic_light"
+    ],
+    "turnL": [
+      "left_turn_sign"
+    ],
+    "turnR": [
+      "right_turn_sign"
+    ],
+    "uphill": [
+      "uphill_sign"
+    ],
+    "downhill": [
+      "downhill_sign"
+    ],
+    "commercial": [
+      "building"
+    ],
+    "industrial": [
+      "building"
+    ],
+    "street_lamp": [
+      "street_lamp"
+    ],
+    "bus_stop": [
+      "bus_stop"
+    ],
+    "crossing": [
+      "crossing"
+    ],
+    "bench": [
+      "bench"
+    ],
+    "fire_hydrant": [
+      "fire_hydrant"
+    ],
+    "anytree": [
+      "tree_1",
+      "tree_2",
+      "tree_3",
+      "pine_1"
+    ]
   }
 }
