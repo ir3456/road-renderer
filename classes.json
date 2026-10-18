@@ -33,8 +33,8 @@
         "leaf_type": {
           "needleleaved": "pinetree",
           "broadleaved": "leaftree",
-          "mixed": "leaftree",
-          "*": "leaftree"
+          "mixed": "anytree",
+          "*": "anytree"
         }
       },
       "tundra": null,
@@ -375,6 +375,9 @@
     },
     "hydrant": {
       "sprites": ["fire_hydrant"]
+    },
+    "anytree": {
+      "sprites": ["anytree"]
     }
   },
   "sprites": {
@@ -402,6 +405,7 @@
     "bus_stop": ["bus_stop"],
     "crossing": ["crossing"],
     "bench": ["bench"],
-    "fire_hydrant": ["fire_hydrant"]
+    "fire_hydrant": ["fire_hydrant"],
+    "anytree": ["tree_1", "tree_2", "tree_3", "pine_1"]
   }
 }
