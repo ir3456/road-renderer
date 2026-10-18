@@ -172,6 +172,12 @@
         <button id="markB" title="]">Mark end</button>
         <button id="crop" disabled>Crop</button>
         <button
+          id="close"
+          title="Append points from the end straight back to the start so the ride loops without a jump"
+        >
+          Close loop
+        </button>
+        <button
           id="unstop"
           title="Replace short stops (lights, signs) with the speed held before braking; later times shift earlier"
         >
@@ -679,6 +685,35 @@
           count
             ? `Removed ${count} stop${count > 1 ? "s" : ""}, ${fmt(saved)} and ${ft(drift)} ft of GPS drift`
             : "No stops found",
+        );
+      };
+      $("close").onclick = () => {
+        if (!ride) return;
+        const a = P[P.length - 1],
+          b = P[0],
+          gap = haversine([a[1], a[2]], [b[1], b[2]]);
+        if (gap < 1) return status("Start and end already meet");
+        const tail = P.slice(-20).filter((p) => p[5] > 0.5),
+          v = tail.length
+            ? tail.reduce((s, p) => s + p[5], 0) / tail.length
+            : ROUTE_SPEED,
+          n = Math.ceil(gap / 5);
+        const pts = Array.from({ length: n }, (_, k) => {
+          const f = (k + 1) / n,
+            d = gap * f;
+          return [
+            a[0] + d / v,
+            a[1] + (b[1] - a[1]) * f,
+            a[2] + (b[2] - a[2]) * f,
+            a[3] + (b[3] - a[3]) * f,
+            a[4] + d,
+            v,
+            a[6],
+          ];
+        });
+        loadRide({ ...ride, pts: [...P.map((p) => p.slice(0, 7)), ...pts] });
+        status(
+          `Closed loop: added ${n} points over ${gap.toFixed(0)} m back to the start`,
         );
       };
       $("fixdrift").onclick = () => {

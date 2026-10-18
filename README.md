@@ -24,7 +24,7 @@ URL params: `?f=sample_big_cottonwood.gpx&z=6700` loads a file at a distance in 
 Open `http://localhost:8000/editor.html`, optionally with `?f=clips/ride.gpx`, or load / drop a GPX, TCX or FIT file. Playback on a map with an elevation profile; recording gaps longer than 15 s are marked as stops (`,` and `.` jump between them, `Skip stops` collapses them to 1 s). Edits, all applied in place and shown in the status line:
 
 - `Fix elevation drift` removes barometric steps (jumps over 4 m that are not explained by the distance moved); `Level start/end` spreads the net drift over the ride; `Reset elevation` undoes both.
-- `Mark start` / `Mark end` (`[` / `]`) then `Crop` keeps the section between them, trimming leading points that stand still or teleport.
+- `Mark start` / `Mark end` (`[` / `]`) then `Crop` keeps the section between them, trimming leading points that stand still or teleport. `Close loop` appends points every 5 m in a straight line from the end back to the start, at the speed held over the last points, so a lap ridden on Repeat has no jump.
 - `Remove stops` replaces stops of 3 s up to the limit (lights, stop signs) with the speed held before braking: the window runs from where speed fell below 80% of the pre-stop peak to where it recovers, positions are interpolated in a straight line so GPS drift at the light disappears, and every later timestamp shifts earlier. Only for timed rides.
 - `Export GPX` writes the result with gaps compressed; routes without timestamps export without `<time>`.
 
