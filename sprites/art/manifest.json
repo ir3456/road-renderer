@@ -5,7 +5,8 @@
     "meters": 3
   },
   "fire_hydrant": {
-    "file": "fire_hydrant.png"
+    "file": "fire_hydrant.png",
+    "meters": 0.9
   },
   "house_1": {
     "file": "house_1.png",
