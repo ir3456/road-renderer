@@ -1,11 +1,47 @@
 {
   "pxPerMeter": 5,
+  "downhill_sign": {
+    "file": "downhill_sign.png",
+    "meters": 3
+  },
+  "fire_hydrant": {
+    "file": "fire_hydrant.png"
+  },
   "house_1": {
     "file": "house_1.png",
     "faceRoad": true
   },
+  "left_turn_sign": {
+    "file": "left_turn_sign.png",
+    "meters": 3
+  },
+  "pavilion": {
+    "file": "pavilion.png"
+  },
   "pine_1": {
     "file": "pine_1.png"
+  },
+  "right_turn_sign": {
+    "file": "right_turn_sign.png",
+    "meters": 3
+  },
+  "sky": {
+    "file": "sky.png"
+  },
+  "stop_sign": {
+    "file": "stop_sign.png",
+    "meters": 3
+  },
+  "street_lamp": {
+    "file": "street_lamp.png",
+    "meters": 4
+  },
+  "toilet": {
+    "file": "toilet.png"
+  },
+  "traffic_light": {
+    "file": "traffic_light.png",
+    "meters": 4
   },
   "tree_1": {
     "file": "tree_1.png"
@@ -16,38 +52,8 @@
   "tree_3": {
     "file": "tree_3.png"
   },
-  "stop_sign": {
-    "file": "stop_sign.png",
-    "meters": 3
-  },
-  "fire_hydrant": {
-    "file": "fire_hydrant.png"
-  },
-  "left_turn_sign": {
-    "file": "left_turn_sign.png",
-    "meters": 3
-  },
-  "right_turn_sign": {
-    "file": "right_turn_sign.png",
-    "meters": 3
-  },
   "uphill_sign": {
     "file": "uphill_sign.png",
     "meters": 3
-  },
-  "downhill_sign": {
-    "file": "downhill_sign.png",
-    "meters": 3
-  },
-  "sky": {
-    "file": "sky.png"
-  },
-  "street_lamp": {
-    "file": "street_lamp.png",
-    "meters": 4
-  },
-  "traffic_light": {
-    "file": "traffic_light.png",
-    "meters": 4
   }
 }
