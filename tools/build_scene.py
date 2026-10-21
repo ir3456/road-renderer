@@ -87,13 +87,18 @@ def overpass(query):
     return json.loads(body)['elements']
 
 
-def overpass_tiles(xs, ys, cos0):
+def osm_tile_keys(xs, ys, cos0):
     lat, lon = to_ll(xs, ys, cos0)
     pad = 80 / R * 57.2958
     tiles = set()
     for dla in (-pad, pad):
         for dlo in (-pad / cos0, pad / cos0):
             tiles |= set(zip(np.floor((lat + dla) / OSM_DEG).astype(int).tolist(), np.floor((lon + dlo) / OSM_DEG).astype(int).tolist()))
+    return tiles
+
+
+def overpass_tiles(xs, ys, cos0):
+    tiles = osm_tile_keys(xs, ys, cos0)
     elements = {}
     for n, (i, j) in enumerate(sorted(tiles)):
         path = tile_path(OSM_LAYER, i, j, 'json')
@@ -582,11 +587,8 @@ def skyline(xs, ys, cos0):
     return {'step': HZ_STEP, 'far': far, 'near': near}
 
 
-def main():
-    ap = argparse.ArgumentParser(); ap.add_argument('gpx'); ap.add_argument('--no-osm', action='store_true'); ap.add_argument('--no-terrain', action='store_true')
-    a = ap.parse_args()
-    lat, lon = read_gpx(a.gpx)
-    xs, ys, s, cos0 = resample(lat, lon, STEP)
+def build(xs, ys, cos0, a):
+    """The scene for a route (or a prefix of one): roadside OSM tags and points, water and side bands, way matching, crossings, side slopes and skyline."""
     hx, hy = heading(xs, ys); nx, ny = -hy, hx
     lx, ly, rx, ry = xs + SIDE * nx, ys + SIDE * ny, xs - SIDE * nx, ys - SIDE * ny
     scene = {'version': 3, 'step': STEP, 'n': len(xs), 'bearing': 'math (0 = east, counterclockwise), degrees'}
@@ -612,8 +614,22 @@ def main():
         scene['profD'] = list(PROF); scene['profL'] = np.round(pl, 0).astype(int).tolist(); scene['profR'] = np.round(pr, 0).astype(int).tolist()
         scene['slopeL'] = np.round(pl[:, 1] / PROF[1] * 100, 0).astype(int).tolist(); scene['slopeR'] = np.round(pr[:, 1] / PROF[1] * 100, 0).astype(int).tolist()
         scene['horizon'] = skyline(xs, ys, cos0)
-    out = os.path.splitext(a.gpx)[0] + '.scene.json'
-    json.dump(scene, open(out, 'w'), separators=(',', ':'))
+    return scene
+
+
+def main():
+    """Builds the scene in passes over growing prefixes of the route, about one OSM tile apart, writing the file after each pass that had to download tiles, so a ride is playable while the rest is still arriving; the last pass is the whole route."""
+    ap = argparse.ArgumentParser(); ap.add_argument('gpx'); ap.add_argument('--no-osm', action='store_true'); ap.add_argument('--no-terrain', action='store_true')
+    a = ap.parse_args()
+    lat, lon = read_gpx(a.gpx)
+    xs, ys, s, cos0 = resample(lat, lon, STEP)
+    out = os.path.splitext(a.gpx)[0] + '.scene.json'; chunk = int(2000 // STEP); n = len(xs)
+    for end in list(range(chunk, n, chunk)) + [n]:
+        cached = a.no_osm or all(os.path.exists(tile_path(layer, i, j, 'json')) for i, j in osm_tile_keys(xs[max(0, end - chunk):end], ys[max(0, end - chunk):end], cos0) for layer in (OSM_LAYER, NODE_LAYER))
+        if end < n and cached: continue
+        scene = build(xs[:end], ys[:end], cos0, a); scene['built'] = end * STEP; scene['total'] = n * STEP
+        json.dump(scene, open(out + '.tmp', 'w'), separators=(',', ':')); os.replace(out + '.tmp', out)
+        if end < n: print(f'  rideable to {end * STEP / 1000:.1f} of {n * STEP / 1000:.1f} km', file=sys.stderr)
     print('wrote', out, os.path.getsize(out) // 1024, 'KB', '| new tiles:', ', '.join(f'{k} {v}' for k, v in fetched.items()), file=sys.stderr)
 
 

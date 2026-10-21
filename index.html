@@ -602,6 +602,7 @@
           .catch(() => {});
       }
       async function pick(r) {
+        confirmPath = r.path;
         confirmEl.hidden = false;
         listEl.hidden = true;
         confirmEl.innerHTML = `<div>${r.path}<span>${r.scene ? "scene built ✓" : "no scene data yet"}</span></div><div id="stats">reading…</div>`;
@@ -659,6 +660,28 @@
               ? `${b.path}\n${b.log.join("\n")}`
               : "";
             stopBtn.hidden = !b.running;
+            if (
+              b.running &&
+              b.path === confirmPath &&
+              !confirmEl.hidden &&
+              !$("rideNow")
+            )
+              fetch(enc(b.path.replace(/\.gpx$/i, "") + ".scene.json"), {
+                method: "HEAD",
+                cache: "no-store",
+              }).then((r) => {
+                if (!r.ok || $("rideNow") || confirmEl.hidden) return;
+                const t = b.path,
+                  btn = document.createElement("button");
+                btn.id = "rideNow";
+                btn.textContent = "Ride now, scenery still building";
+                btn.onclick = () => {
+                  confirmEl.hidden = true;
+                  listEl.hidden = false;
+                  loadUrl(t);
+                };
+                confirmEl.appendChild(btn);
+              });
             if (b.running) buildTimer = setTimeout(pollBuild, 1000);
             else if (buildTarget) {
               const t = buildTarget;
@@ -716,6 +739,7 @@
         profile.draw(road);
       }
       function loadText(text) {
+        clearInterval(sceneWatch);
         let t;
         try {
           t = parseGpx(text);
@@ -745,6 +769,32 @@
           return;
         }
         buildRoad();
+      }
+      let sceneWatch = null,
+        confirmPath = null;
+      /** While a build is running for the loaded ride or its scene is still partial, re-reads the scene file whenever it changes so the scenery fills in under the rider. */
+      function watchScene(url, seen) {
+        clearInterval(sceneWatch);
+        sceneWatch = setInterval(async () => {
+          const b = await fetch("build.json")
+            .then((r) => r.json())
+            .catch(() => null);
+          const h = await fetch(url, {
+            method: "HEAD",
+            cache: "no-store",
+          }).catch(() => null);
+          const mod = h?.headers.get("last-modified");
+          if (h?.ok && mod !== seen) {
+            seen = mod;
+            const r = await fetch(url, { cache: "no-store" }).catch(() => null);
+            if (r?.ok) loadSceneText(await r.text());
+          }
+          if (
+            !(scene?.built < scene?.total) &&
+            !(b?.running && b.path === ridePath)
+          )
+            clearInterval(sceneWatch);
+        }, 3000);
       }
       const enc = (f) => f.split("/").map(encodeURIComponent).join("/");
       async function loadFiles(files) {
@@ -786,7 +836,14 @@
                 () => null,
               )
             : null;
-          if (s && s.ok) loadSceneText(await s.text());
+          if (s && s.ok) {
+            loadSceneText(await s.text());
+            ridePath = f;
+            watchScene(
+              enc(f.replace(/\.gpx$/i, "") + ".scene.json"),
+              s.headers.get("last-modified"),
+            );
+          }
         } catch (e) {
           notice(`Could not load ${f}: ${e.message}`);
           return;

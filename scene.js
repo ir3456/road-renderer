@@ -117,6 +117,7 @@ export function placeholderScene(road, P) {
 
 export function applyScene(road, scene, P) {
   const base = (P.sceneDensity / 1000) * road.L,
+    built = scene.built ?? Infinity,
     at = (i) => Math.min(scene.n - 1, Math.floor((i * road.L) / scene.step));
   road.prof = scene.profL ? new Array(road.n) : null;
   road.profD = scene.profD;
@@ -213,6 +214,7 @@ export function applyScene(road, scene, P) {
   road.water =
     scene.waterL || scene.sideL
       ? Array.from({ length: road.n }, (_, i) => {
+          if (i * road.L >= built) return null;
           const j = at(i),
             l = band(j, scene.waterL, scene.sideL),
             r = band(j, scene.waterR, scene.sideR);
@@ -251,6 +253,10 @@ export function applyScene(road, scene, P) {
       near.fill(1, Math.max(0, i - r), i + r + 1);
     }
   for (let i = 0; i < road.n; i++) {
+    if (i * road.L >= built) {
+      if (road.prof) road.prof[i] = [pL[0].map(() => 0), pR[0].map(() => 0)];
+      continue;
+    }
     const j = at(i);
     let list = null;
     for (const side of [-1, 1]) {
