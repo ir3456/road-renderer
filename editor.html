@@ -765,11 +765,15 @@
       $("export").onclick = () => {
         if (!ride) return;
         const hasPower = P.some((p) => p[6] > 0),
-          iso = (t) => new Date((ride.start + t) * 1000).toISOString();
+          iso = (t) => new Date((ride.start + t) * 1000).toISOString(),
+          file = (
+            $("exportname").value.trim() || safeName() + "_fixed"
+          ).replace(/\.gpx$/i, ""),
+          name = file.replace(/_/g, " ");
         let out = `<?xml version="1.0" encoding="UTF-8"?>\n<gpx creator="Ride Editor" version="1.1" xmlns="http://www.topografix.com/GPX/1/1">\n`;
         if (ride.hasTime)
           out += `<metadata><time>${iso(0)}</time></metadata>\n`;
-        out += `<trk><name>${esc(ride.name)}</name><type>cycling</type><trkseg>\n`;
+        out += `<trk><name>${esc(name)}</name><type>cycling</type><trkseg>\n`;
         for (let i = 0; i < P.length; i++) {
           const p = P[i];
           out += `<trkpt lat="${p[1]}" lon="${p[2]}"><ele>${p[3].toFixed(1)}</ele>`;
@@ -783,11 +787,7 @@
         a.href = URL.createObjectURL(
           new Blob([out], { type: "application/gpx+xml" }),
         );
-        a.download =
-          ($("exportname").value.trim() || safeName() + "_fixed").replace(
-            /\.gpx$/i,
-            "",
-          ) + ".gpx";
+        a.download = file + ".gpx";
         a.click();
         URL.revokeObjectURL(a.href);
         status(
