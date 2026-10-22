@@ -862,6 +862,13 @@
           dt = road.t[i + 1] - road.t[i];
         return dt > 0 ? road.L / dt : 0;
       }
+      /** Watts from the trainer when one is connected, else the recorded power at this point of a GPX that has it, else null. */
+      function powerNow() {
+        if (kickr.live.device) return kickr.live.power;
+        if (!track.power) return null;
+        const i = Math.max(0, track.dist.findIndex((d) => d >= playerZ) - 1);
+        return track.power[i];
+      }
       function speedNow() {
         if (modeSel.value === "live") return liveV;
         if (modeSel.value === "gpx" && road.t)
@@ -1177,7 +1184,15 @@
             actors,
             (c, w, h) => {
               if (road && P.gauge === "on")
-                drawGauge(c, w, h, assets, speedNow() / MPH, ridden / MI);
+                drawGauge(
+                  c,
+                  w,
+                  h,
+                  assets,
+                  speedNow() / MPH,
+                  ridden / MI,
+                  powerNow(),
+                );
             },
           );
           if (road) drawHud(fr);
