@@ -929,7 +929,7 @@
         const gpx = toGpx(ride, track.name || "Ride", posAt),
           d = new Date(ride.startedAt),
           pad = (n) => String(n).padStart(2, "0");
-        const name = `${(track.name || "ride").replace(/[^\w\-]+/g, "_")}-${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}.gpx`;
+        const name = `${(track.name || "ride").replace(/[^\w\- ]+/g, "").trim()} ${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}${pad(d.getMinutes())}.gpx`;
         endRide();
         await fetch("upload?f=" + encodeURIComponent("rides/" + name), {
           method: "POST",
