@@ -1,7 +1,7 @@
 /** Speedometer in the bottom right corner of the pixel frame: dial art, a needle from a 32-frame sheet covering 0–90° (0 pointing left, 90 straight up) mirrored for the other quadrants at 20 mph per 90°, and an odometer of rolling digit wheels behind the dial's windows. */
 const NEEDLE_PIVOT = [20, 20],
   HUB = [26, 26],
-  CELLS = [11, 18, 25, 34],
+  CELLS = [12, 19, 26, 35],
   CELL_Y = 34,
   DIGIT = 9,
   MARGIN = 6;
