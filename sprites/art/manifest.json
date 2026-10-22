@@ -56,5 +56,17 @@
   "uphill_sign": {
     "file": "uphill_sign.png",
     "meters": 3
+  },
+  "gauge": {
+    "file": "gauge.png"
+  },
+  "needle": {
+    "file": "needle.png",
+    "frameW": 41,
+    "frameH": 21,
+    "frames": 32
+  },
+  "odometer_wheel": {
+    "file": "odometer_wheel.png"
   }
 }

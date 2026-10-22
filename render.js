@@ -3,7 +3,17 @@ import { project } from "./project.js";
 let fb = null,
   fctx = null;
 
-export function render(canvas, road, playerZ, P, theme, assets, actors) {
+/** Draws the scene at the pixel resolution and scales it to the canvas; overlay(ctx, w, h) draws on top at that resolution. */
+export function render(
+  canvas,
+  road,
+  playerZ,
+  P,
+  theme,
+  assets,
+  actors,
+  overlay,
+) {
   const ctx = canvas.getContext("2d"),
     W = canvas.width,
     H = canvas.height;
@@ -13,6 +23,7 @@ export function render(canvas, road, playerZ, P, theme, assets, actors) {
   if (fw === W && fh === H) {
     const frame = project(road, playerZ, P, W, H, actors);
     theme.draw(ctx, frame, P, assets);
+    overlay?.(ctx, W, H);
     return frame;
   }
   if (!fb || fb.width !== fw || fb.height !== fh) {
@@ -23,6 +34,7 @@ export function render(canvas, road, playerZ, P, theme, assets, actors) {
   }
   const frame = project(road, playerZ, P, fw, fh, actors);
   theme.draw(fctx, frame, P, assets);
+  overlay?.(fctx, fw, fh);
   ctx.fillStyle = "#000";
   ctx.fillRect(0, 0, W, H);
   ctx.imageSmoothingEnabled = false;
