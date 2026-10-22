@@ -453,6 +453,7 @@
         saveLevers,
         resetLevers,
       } from "./levers.js";
+      import { drawGauge } from "./hud.js";
       import { createMinimap } from "./minimap.js";
       import { createProfile } from "./profile.js";
 
@@ -1166,7 +1167,19 @@
           profile.marker(playerZ, ghostZ);
         }
         if (theme) {
-          const fr = render(canvas, road, playerZ, P, theme, assets, actors);
+          const fr = render(
+            canvas,
+            road,
+            playerZ,
+            P,
+            theme,
+            assets,
+            actors,
+            (c, w, h) => {
+              if (road && P.gauge === "on")
+                drawGauge(c, w, h, assets, speedNow() / MPH, ridden / MI);
+            },
+          );
           if (road) drawHud(fr);
         }
         requestAnimationFrame(frame);

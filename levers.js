@@ -149,6 +149,12 @@ export const LEVERS = [
   },
   { group: "Look" },
   {
+    key: "gauge",
+    label: "Speedometer overlay",
+    options: { on: "On", off: "Off" },
+    def: "on",
+  },
+  {
     key: "theme",
     label: "Theme",
     options: { arcade: "Arcade palette", flat: "Flat" },
