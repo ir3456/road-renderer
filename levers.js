@@ -346,7 +346,7 @@ export const LEVERS = [
     min: 20,
     max: 60,
     step: 1,
-    def: 39,
+    def: 49,
   },
   {
     key: "virtCog",
@@ -354,18 +354,19 @@ export const LEVERS = [
     min: 9,
     max: 36,
     step: 1,
-    def: 14,
+    def: 18,
   },
   {
     key: "cassette",
     label: "Virtual cassette",
     options: {
+      fixed: "Fixed gear (no shifting)",
       "11-28": "11-28",
       "11-32": "11-32",
       "11-34": "11-34",
       "12-25": "12-25",
     },
-    def: "11-28",
+    def: "fixed",
   },
   {
     key: "trainerSpeed",
