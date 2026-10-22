@@ -155,6 +155,14 @@ export const LEVERS = [
     def: "on",
   },
   {
+    key: "gaugeSmooth",
+    label: "Needle smoothing (s)",
+    min: 0,
+    max: 5,
+    step: 0.5,
+    def: 2,
+  },
+  {
     key: "theme",
     label: "Theme",
     options: { arcade: "Arcade palette", flat: "Flat" },

@@ -1,14 +1,21 @@
-/** Speedometer in the bottom right corner of the pixel frame: dial art, a needle from a 32-frame sheet covering 0–90° (0 pointing left, 90 straight up) mirrored for the other quadrants at 20 mph per 90°, an odometer of rolling digit wheels behind the dial's windows, and, when watts is given, a blue power needle under the speed needle at 200 W per 90°, stopping at 600 W pointing straight down. */
+/** Speedometer in the bottom right corner of the pixel frame: dial art, a needle from a 32-frame sheet covering 0–90° (0 pointing left, 90 straight up) mirrored for the other quadrants at 20 mph per 90°, an odometer of rolling digit wheels behind the dial's windows, and, when watts is given, a blue power needle under the speed needle at 200 W per 90°, stopping at 600 W pointing straight down. Both needles follow an exponential moving average evaluated every frame with time constant smooth seconds, so they glide between the once-a-second samples and hide stroke-to-stroke noise; 0 shows raw values. */
 const NEEDLE_PIVOT = [20, 20],
   HUB = [26, 26],
   CELLS = [12, 19, 26, 35],
   CELL_Y = 34,
   DIGIT = 9,
   MARGIN = 6;
+const shown = { mph: null, watts: null, at: 0 };
 
-export function drawGauge(ctx, W, H, assets, mph, miles, watts) {
+export function drawGauge(ctx, W, H, assets, mph, miles, watts, smooth) {
   const dial = assets.gauge;
   if (!dial) return;
+  const now = performance.now(),
+    k = smooth > 0 ? 1 - Math.exp(-(now - shown.at) / 1000 / smooth) : 1,
+    ease = (prev, v) => (prev == null || v == null ? v : prev + (v - prev) * k);
+  shown.at = now;
+  mph = shown.mph = ease(shown.mph, mph);
+  watts = shown.watts = ease(shown.watts, watts);
   const x0 = W - dial.w - MARGIN,
     y0 = H - dial.h - MARGIN,
     wheel = assets.odometer_wheel;
