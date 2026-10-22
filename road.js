@@ -5,12 +5,14 @@ export function parseGpx(text) {
     ...doc.getElementsByTagName("rtept"),
   ].map((p) => {
     const e = p.getElementsByTagName("ele")[0],
-      tm = p.getElementsByTagName("time")[0];
+      tm = p.getElementsByTagName("time")[0],
+      pw = p.getElementsByTagName("power")[0];
     return {
       lat: +p.getAttribute("lat"),
       lon: +p.getAttribute("lon"),
       ele: e ? +e.textContent : 0,
       time: tm ? Date.parse(tm.textContent) / 1000 : null,
+      power: pw ? +pw.textContent : null,
     };
   });
   return makeTrack(
@@ -19,7 +21,7 @@ export function parseGpx(text) {
   );
 }
 
-/** Track in local meters from [{ lat, lon, ele, time? }]: x east, y north from the first point, cumulative dist, t in seconds or null when any point lacks a time. */
+/** Track in local meters from [{ lat, lon, ele, time?, power? }]: x east, y north from the first point, cumulative dist, t in seconds or null when any point lacks a time, power in watts or null when no point has it. */
 export function makeTrack(name, pts) {
   if (pts.length < 2) throw new Error("no track points");
   const R = 6371000,
@@ -30,8 +32,11 @@ export function makeTrack(name, pts) {
     dist = [0];
   for (let i = 1; i < x.length; i++)
     dist.push(dist[i - 1] + Math.hypot(x[i] - x[i - 1], y[i] - y[i - 1]));
-  const t = pts.every((p) => p.time != null) ? pts.map((p) => p.time) : null;
-  return { name, x, y, ele, dist, t, total: dist[dist.length - 1] };
+  const t = pts.every((p) => p.time != null) ? pts.map((p) => p.time) : null,
+    power = pts.some((p) => p.power != null)
+      ? pts.map((p) => p.power || 0)
+      : null;
+  return { name, x, y, ele, dist, t, power, total: dist[dist.length - 1] };
 }
 
 export const toLatLon = (track, x, y) => {

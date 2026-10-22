@@ -68,5 +68,11 @@
   },
   "odometer_wheel": {
     "file": "odometer_wheel.png"
+  },
+  "needle_power": {
+    "file": "needle_power.png",
+    "frameW": 41,
+    "frameH": 21,
+    "frames": 32
   }
 }
