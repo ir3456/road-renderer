@@ -1,4 +1,4 @@
-/** Speedometer in the bottom right corner of the pixel frame: dial art, a needle from a 32-frame sheet covering 0–90° (0 pointing left, 90 straight up) mirrored for the other quadrants at 20 mph per 90°, an odometer of rolling digit wheels behind the dial's windows, and, when watts is given, a blue power needle under the speed needle at 200 W per 90°, stopping at 600 W pointing straight down. Both needles follow an exponential moving average evaluated every frame with time constant smooth seconds, so they glide between the once-a-second samples and hide stroke-to-stroke noise; 0 shows raw values. */
+/** Speedometer in the bottom right corner of the pixel frame: dial art, a needle from a 32-frame sheet covering 0–90° (0 pointing left, 90 straight up) mirrored for the other quadrants at 20 mph per 90°, an odometer of rolling digit wheels behind the dial's windows, and, when watts is given, a blue power needle under the speed needle at 200 W per 90°, both stopping pointing straight down at 60 mph and 600 W. Both needles follow an exponential moving average evaluated every frame with time constant smooth seconds, so they glide between the once-a-second samples and hide stroke-to-stroke noise; 0 shows raw values. */
 const NEEDLE_PIVOT = [20, 20],
   HUB = [26, 26],
   CELLS = [12, 19, 26, 35],
@@ -55,8 +55,8 @@ export function drawGauge(ctx, W, H, assets, mph, miles, watts, smooth) {
   }
   ctx.drawImage(dial.img, x0, y0);
   if (watts != null)
-    needle(ctx, assets.needle_power, x0, y0, (Math.min(watts, 600) / 200) * 90);
-  needle(ctx, assets.needle, x0, y0, (mph / 20) * 90);
+    needle(ctx, assets.needle_power, x0, y0, Math.min(270, (watts / 200) * 90));
+  needle(ctx, assets.needle, x0, y0, Math.min(270, (mph / 20) * 90));
 }
 
 /** One needle at deg (0 pointing left, 90 straight up), from a sheet covering 0–90° mirrored into the other quadrants. */
