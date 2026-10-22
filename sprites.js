@@ -36,7 +36,14 @@ export async function loadSprites(urls) {
                 flip: !!m.faceRoad,
                 stack: !!m.stack,
               };
-              res();
+              if (!m.right) return res();
+              const imgR = new Image();
+              imgR.onload = () => {
+                out[name].right = { ...out[name], img: imgR, flip: false };
+                res();
+              };
+              imgR.onerror = res;
+              imgR.src = dir + m.right;
             };
             img.onerror = res;
             img.src = dir + m.file;

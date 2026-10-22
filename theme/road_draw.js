@@ -468,7 +468,8 @@ export function drawSprites(ctx, frame, P, assets, kinds, pal) {
     }
     if (!list) continue;
     for (const sp of list) {
-      const s = sp.text ? signSprite(sp.text) : sprite(sp.kind, base + k);
+      const s0 = sp.text ? signSprite(sp.text) : sprite(sp.kind, base + k),
+        s = sp.offset > 0 && s0?.right ? s0.right : s0;
       if (!s) continue;
       const d = p.hw + Math.abs(sp.offset),
         wv = water && water[base + k]?.[sp.offset < 0 ? 0 : 1];
