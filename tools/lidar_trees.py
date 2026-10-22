@@ -6,7 +6,7 @@
 
     uv run tools/lidar_trees.py NAME south west north east [--ept URL] [--res 0.6]
 
-Writes tiles/lidar/NAME.trees.json ([[lat, lon, height m], ...]) and NAME.chm.png, the canopy height model with the trees marked, next to it.
+Writes tiles/lidar/NAME.trees.json ({bbox: [south, west, north, east], trees: [[lat, lon, height m], ...]}), which the scene builder uses in place of OSM's mapped trees inside the box, and NAME.chm.png, the canopy height model with the trees marked, next to it.
 Ground is the lowest return per 2 m cell; canopy height is the highest non-ground, non-building return above it per 1 m cell; the model is gap-filled and smoothed over 3 m, and a tree is a cell at least MIN_H tall with at least 8 canopy cells within 2 m that is the highest within a radius growing with its height. Where the flight left returns unclassified, only multi-return pulses count as vegetation, since roofs return once and canopies several times."""
 import argparse, io, json, math, os, struct, sys, urllib.request, zlib
 import numpy as np, laspy
@@ -90,7 +90,7 @@ def main():
     trees = [(ty, tx, float(chm[ty - 1:ty + 2, tx - 1:tx + 2].max())) for ty, tx in zip(*np.nonzero(top))]
     lat, lon = unmerc(np.array([t[1] for t in trees]) / k + x0, np.array([t[0] for t in trees]) / k + y0)
     os.makedirs(OUT, exist_ok=True)
-    json.dump([[round(float(la), 6), round(float(lo), 6), round(t[2], 1)] for la, lo, t in zip(lat, lon, trees)], open(os.path.join(OUT, a.name + '.trees.json'), 'w'))
+    json.dump({'bbox': [a.south, a.west, a.north, a.east], 'trees': [[round(float(la), 6), round(float(lo), 6), round(t[2], 1)] for la, lo, t in zip(lat, lon, trees)]}, open(os.path.join(OUT, a.name + '.trees.json'), 'w'))
     shade = np.clip(chm / 25 * 255, 0, 255).astype(np.uint8)[::-1]
     rgb = np.stack([shade // 3, shade, shade // 3], axis=-1)
     for ty, tx, _ in trees:
