@@ -62,18 +62,22 @@ function resolve(t) {
 }
 
 const setCache = new Map();
-/** The area sets a sample side's OSM tag string resolves to, one entry per set. */
-function sets(tags) {
-  if (setCache.has(tags)) return setCache.get(tags);
-  const out = [];
-  for (const el of tags.split("+")) {
-    const t = parseTags(el),
-      name = resolve(t),
+/** The area sets a sample side's tag string resolves to, one entry per set. The side's USGS land cover class (nlcd=…) is visible to every element's nested lookups, and its own set only fills in when nothing from OSM does. */
+function sets(tags, useNlcd) {
+  const key = useNlcd + tags;
+  if (setCache.has(key)) return setCache.get(key);
+  const els = tags.split("+").map(parseTags),
+    nlcd = useNlcd ? els.find((t) => "nlcd" in t)?.nlcd : undefined,
+    out = [];
+  const add = (t) => {
+    const name = resolve(t),
       set = name && CLASSES.sets[name];
     if (set?.density && !out.some((o) => o.name === name))
       out.push({ ...set, name, levels: +t["building:levels"] || set.levels });
-  }
-  setCache.set(tags, out);
+  };
+  for (const t of els) if (!("nlcd" in t)) add(nlcd ? { ...t, nlcd } : t);
+  if (!out.length && nlcd) add({ nlcd });
+  setCache.set(key, out);
   return out;
 }
 
@@ -263,7 +267,7 @@ export function applyScene(road, scene, P) {
       if (road.junc && road.junc[i] & (side < 0 ? 1 : 2)) continue;
       const tags = (side < 0 ? scene.left : scene.right)?.[j] || "",
         slope = (side < 0 ? scene.slopeL : scene.slopeR)?.[j] || 0;
-      const opts = tags ? sets(tags) : [];
+      const opts = tags ? sets(tags, P.nlcd === "on") : [];
       if (!opts.length) opts.push({ sprites: ["bush"], density: 0.08 });
       let total = opts.reduce((a, o) => a + o.density, 0);
       if (slope <= -60) total *= 0.5;

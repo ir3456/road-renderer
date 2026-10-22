@@ -507,8 +507,8 @@ def parse_tiff(buf):
         src = buf[off + 10 + i * 12:off + 10 + i * 12 + size] if size <= 4 else buf[v:v + size]
         tags[t] = list(struct.unpack(e + fmt * c, src))
     W, H = tags[256][0], tags[257][0]
-    assert tags.get(259, [1])[0] == 1 and tags.get(258, [32])[0] == 32, 'expected uncompressed float32 tiff'
-    dt = np.dtype(e + 'f4'); img = np.full((H, W), np.nan, np.float32)
+    assert tags.get(259, [1])[0] == 1 and tags.get(258, [32])[0] in (8, 32), 'expected uncompressed float32 or uint8 tiff'
+    dt = np.dtype(e + 'f4') if tags.get(258, [32])[0] == 32 else np.dtype('u1'); img = np.full((H, W), np.nan, np.float32)
     if 324 in tags:
         tw, th = tags[322][0], tags[323][0]; across = math.ceil(W / tw)
         for k, (o, c) in enumerate(zip(tags[324], tags[325])):
@@ -524,8 +524,28 @@ def parse_tiff(buf):
     return img
 
 
+NLCD = 'https://www.mrlc.gov/geoserver/mrlc_download/wcs'
+NLCD_LAYER = ('nlcd', 0.02, None)
+
+
+def nlcd_tile(layer, i, j):
+    """USGS NLCD 2021 land cover classes for one 0.02 degree tile, reprojected to lat/lon by the server and resampled to a fixed 80 x 80 grid since the server's pixel count varies by a row or column between tiles."""
+    name, D, _ = layer
+    path = tile_path(name, i, j, 'npy')
+    grid = lambda img: img[np.linspace(0, img.shape[0] - 1, 80).round().astype(int)][:, np.linspace(0, img.shape[1] - 1, 80).round().astype(int)]
+    if os.path.exists(path): return grid(np.load(path))
+    print(f'  {name} tile {i}_{j}', file=sys.stderr)
+    crs = 'http://www.opengis.net/def/crs/EPSG/0/4326'
+    body = fetch(NLCD + '?' + urllib.parse.urlencode([('service', 'WCS'), ('version', '2.0.1'), ('request', 'GetCoverage'), ('coverageId', 'mrlc_download__NLCD_2021_Land_Cover_L48'), ('subset', f'Long({j * D},{(j + 1) * D})'), ('subset', f'Lat({i * D},{(i + 1) * D})'), ('subsettingCrs', crs), ('outputCrs', crs), ('format', 'image/tiff')]))
+    try: img = parse_tiff(body)
+    except Exception: raise SystemExit(f'NLCD failed for tile {i}_{j}; rerun to resume from the tile cache')
+    np.save(path, img); fetched[name] = fetched.get(name, 0) + 1
+    return grid(img)
+
+
 def dem_tile(layer, i, j):
     name, D, px = layer
+    if name == 'nlcd': return nlcd_tile(layer, i, j)
     path = tile_path(name, i, j, 'npy')
     if os.path.exists(path): return np.load(path)
     print(f'  {name} tile {i}_{j}', file=sys.stderr)
@@ -543,6 +563,11 @@ class Dem:
         i0, i1, j0, j1 = math.floor(lat0 / D), math.floor(lat1 / D), math.floor(lon0 / D), math.floor(lon1 / D)
         self.img = np.concatenate([np.concatenate([dem_tile(layer, i, j) for j in range(j0, j1 + 1)], axis=1) for i in range(i1, i0 - 1, -1)], axis=0)
         self.lon0, self.lat0, self.lon1, self.lat1 = j0 * D, i0 * D, (j1 + 1) * D, (i1 + 1) * D
+
+    def nearest(self, lat, lon):
+        H, W = self.img.shape
+        x = np.clip(((lon - self.lon0) / (self.lon1 - self.lon0) * W).astype(int), 0, W - 1); y = np.clip(((self.lat1 - lat) / (self.lat1 - self.lat0) * H).astype(int), 0, H - 1)
+        return self.img[y, x]
 
     def sample(self, lat, lon):
         H, W = self.img.shape
@@ -608,6 +633,12 @@ def build(xs, ys, cos0, a):
             scene['xings'] = [x for x in crossings(hwys, match, xs, ys, signals) if x.pop('lvl') == lvl[x['i']]]
             scene['xings'] = sorted(scene['xings'] + water_crossings(els, cos0, xs, ys), key=lambda x: x['i'])
         print(f'  {len(els)} elements, {len(scene.get("ways", []))} route ways, {len(scene.get("xings", []))} crossings', file=sys.stderr)
+    if not a.no_osm and 'left' in scene:
+        print('USGS NLCD land cover', file=sys.stderr)
+        for key, px, py in (('left', lx, ly), ('right', rx, ry)):
+            la, lo = to_ll(px, py, cos0)
+            codes = Dem(lo.min() - 0.001, la.min() - 0.001, lo.max() + 0.001, la.max() + 0.001, NLCD_LAYER).nearest(la, lo)
+            scene[key] = [s + ('+' if s else '') + f'nlcd={int(c)}' if c == c and c > 0 else s for s, c in zip(scene[key], codes)]
     if not a.no_terrain:
         print('USGS 3DEP', file=sys.stderr)
         pl, pr = side_slopes(xs, ys, cos0, nx, ny)
