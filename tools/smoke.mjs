@@ -1,5 +1,5 @@
 // Smoke test for the pure modules: node tools/smoke.mjs [ride.gpx ...]
-// Builds every GPX in the repo root and clips/ (with its scene file when present) through road → scene → project → ghost and checks invariants.
+// Builds every GPX in routes/ and routes/favorites/ (with its scene file from routes/scenes/ when present) through road → scene → project → ghost and checks invariants.
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { makeTrack, buildRoad } from "../road.js";
 import { applyScene, placeholderScene } from "../scene.js";
@@ -12,8 +12,10 @@ const files =
   process.argv.length > 2
     ? process.argv.slice(2)
     : [
-        ...readdirSync(root),
-        ...readdirSync(root + "clips").map((f) => "clips/" + f),
+        ...readdirSync(root + "routes").map((f) => "routes/" + f),
+        ...readdirSync(root + "routes/favorites").map(
+          (f) => "routes/favorites/" + f,
+        ),
       ].filter((f) => f.endsWith(".gpx"));
 const parse = (text) =>
   makeTrack(
@@ -45,7 +47,13 @@ const check = (ok, what) => {
 for (const f of files) {
   const track = parse(readFileSync(root + f, "utf8")),
     road = buildRoad(track, P);
-  const scenePath = root + f.replace(/\.gpx$/, ".scene.json"),
+  const scenePath =
+      root +
+      "routes/scenes/" +
+      f
+        .split("/")
+        .pop()
+        .replace(/\.gpx$/, ".scene.json"),
     scene = existsSync(scenePath) ? JSON.parse(readFileSync(scenePath)) : null;
   if (scene) applyScene(road, scene, P);
   else placeholderScene(road, P);

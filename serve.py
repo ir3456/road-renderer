@@ -3,7 +3,10 @@ import glob, http.server, json, os, subprocess, sys, threading, urllib.parse
 build = {'path': None, 'log': [], 'proc': None}
 
 def rides():
-    return sorted(glob.glob('*.gpx') + glob.glob('clips/*.gpx') + glob.glob('rides/*.gpx'))
+    return sorted(glob.glob('routes/*.gpx') + glob.glob('routes/favorites/*.gpx'))
+
+def scene_of(path):
+    return os.path.join('routes', 'scenes', os.path.basename(path)[:-4] + '.scene.json')
 
 def run_build(path):
     build.update(path=path, log=[], proc=subprocess.Popen(['uv', 'run', 'tools/build_scene.py', path], stderr=subprocess.PIPE, text=True))
@@ -26,7 +29,7 @@ class H(http.server.SimpleHTTPRequestHandler):
 
     def do_GET(self):
         if self.path == '/rides.json':
-            return self.reply([{'path': p, 'scene': os.path.exists(p[:-4] + '.scene.json')} for p in rides()])
+            return self.reply([{'path': p, 'scene': os.path.exists(scene_of(p)), 'fav': p.startswith('routes/favorites/')} for p in rides()])
         if self.path == '/build.json':
             p = build['proc']
             return self.reply({'path': build['path'], 'log': build['log'][-12:], 'running': p is not None and p.poll() is None, 'code': p and p.poll()})
@@ -42,7 +45,11 @@ class H(http.server.SimpleHTTPRequestHandler):
             p.terminate()
             build['log'].append('stopped')
             return self.reply({'ok': True})
-        if self.path.startswith('/upload?f=') and path.endswith('.gpx') and os.path.dirname(path) in ('clips', 'rides') and os.path.basename(path) == path.split('/')[1]:
+        if self.path.startswith('/fav?f=') and path in rides():
+            new = os.path.join('routes', os.path.basename(path)) if path.startswith('routes/favorites/') else os.path.join('routes', 'favorites', os.path.basename(path))
+            os.makedirs(os.path.dirname(new), exist_ok=True); os.rename(path, new)
+            return self.reply({'path': new})
+        if self.path.startswith('/upload?f=') and path.endswith('.gpx') and os.path.dirname(path) in ('routes', 'rides') and os.path.basename(path) == path.split('/')[1]:
             os.makedirs(os.path.dirname(path), exist_ok=True)
             open(path, 'wb').write(self.rfile.read(int(self.headers['Content-Length'])))
             return self.reply({'path': path})

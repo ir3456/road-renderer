@@ -623,7 +623,9 @@ def main():
     a = ap.parse_args()
     lat, lon = read_gpx(a.gpx)
     xs, ys, s, cos0 = resample(lat, lon, STEP)
-    out = os.path.splitext(a.gpx)[0] + '.scene.json'; chunk = int(2000 // STEP); n = len(xs)
+    d = os.path.dirname(a.gpx).replace(os.sep, '/').rstrip('/'); base = os.path.splitext(os.path.basename(a.gpx))[0]
+    out = os.path.join('routes', 'scenes', base + '.scene.json') if d in ('routes', 'routes/favorites') else os.path.splitext(a.gpx)[0] + '.scene.json'
+    os.makedirs(os.path.dirname(out) or '.', exist_ok=True); chunk = int(2000 // STEP); n = len(xs)
     for end in list(range(chunk, n, chunk)) + [n]:
         cached = a.no_osm or all(os.path.exists(tile_path(layer, i, j, 'json')) for i, j in osm_tile_keys(xs[max(0, end - chunk):end], ys[max(0, end - chunk):end], cos0) for layer in (OSM_LAYER, NODE_LAYER))
         if end < n and cached: continue

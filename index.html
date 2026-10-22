@@ -187,10 +187,6 @@
       .ride.on button:first-child {
         border-color: #8ab4f8;
       }
-      #favSel {
-        width: 100%;
-        margin-bottom: 8px;
-      }
       #list details {
         margin-top: 8px;
       }
@@ -215,12 +211,12 @@
         max-height: 120px;
         overflow-y: auto;
       }
-      #recent:empty::after {
-        content: "no rides yet";
+      #favs:empty::after {
+        content: "no favorites yet (★ a route)";
         color: #888;
       }
       #rides:empty::after {
-        content: "no rides listed (run serve.py)";
+        content: "no routes listed (run serve.py)";
         color: #888;
       }
       .lever {
@@ -339,10 +335,9 @@
             <div id="pages">
               <div class="page" id="ridePage">
                 <div id="list">
-                  <select id="favSel"></select>
-                  <div id="recent"></div>
+                  <div id="favs"></div>
                   <details>
-                    <summary>All rides</summary>
+                    <summary>All routes</summary>
                     <div id="rides"></div>
                   </details>
                 </div>
@@ -539,62 +534,42 @@
       };
       let buildTimer = null,
         buildTarget = null;
-      const stored = (k) => {
-        try {
-          return JSON.parse(localStorage.getItem(k)) || [];
-        } catch (e) {
-          return [];
-        }
-      };
-      const store = (k, v) => {
-        try {
-          localStorage.setItem(k, JSON.stringify(v));
-        } catch (e) {}
-      };
-      const isFav = (p) => stored("favRides").includes(p);
-      function toggleFav(p) {
-        const f = stored("favRides");
-        store("favRides", f.includes(p) ? f.filter((x) => x !== p) : [...f, p]);
-        listRides();
-      }
-      function starBtn(p) {
+      const scenePath = (f) =>
+          "routes/scenes/" +
+          f
+            .split("/")
+            .pop()
+            .replace(/\.gpx$/i, "") +
+          ".scene.json",
+        routeName = (p) => p.replace(/^routes\/(favorites\/)?/, "");
+      /** ★ moves a route between routes/ and routes/favorites/ on the server; onMoved gets the new path. */
+      function starBtn(p, onMoved) {
         const b = document.createElement("button");
-        b.textContent = isFav(p) ? "★" : "☆";
+        b.textContent = p.startsWith("routes/favorites/") ? "★" : "☆";
         b.title = "Favorite";
-        b.onclick = () => {
-          toggleFav(p);
-          b.textContent = isFav(p) ? "★" : "☆";
-        };
+        b.onclick = () =>
+          fetch("fav?f=" + encodeURIComponent(p), { method: "POST" })
+            .then((r) => r.json())
+            .then((r) => onMoved(r.path))
+            .catch(() => {});
         return b;
       }
       function listRides() {
         fetch("rides.json")
           .then((r) => r.json())
           .then((list) => {
-            const by = (p) => list.find((r) => r.path === p),
-              favs = stored("favRides").map(by).filter(Boolean);
-            $("favSel").innerHTML =
-              `<option value="">${favs.length ? "Favorites…" : "No favorites yet (★ a ride)"}</option>` +
-              favs.map((r) => `<option>${r.path}</option>`).join("");
-            $("favSel").onchange = (e) => {
-              if (e.target.value) pick(by(e.target.value));
-              e.target.value = "";
-            };
             for (const [el, rs] of [
-              [
-                $("recent"),
-                stored("recentRides").map(by).filter(Boolean).slice(0, 5),
-              ],
-              [$("rides"), list],
+              [$("favs"), list.filter((r) => r.fav)],
+              [$("rides"), list.filter((r) => !r.fav)],
             ]) {
               el.innerHTML = "";
               for (const r of rs) {
                 const d = document.createElement("div"),
                   b = document.createElement("button");
                 d.className = "ride" + (r.path === ridePath ? " on" : "");
-                b.innerHTML = `${r.path}<span>${r.scene ? "scene" : "no scene"}</span>`;
+                b.innerHTML = `${routeName(r.path)}<span>${r.scene ? "scene" : "no scene"}</span>`;
                 b.onclick = () => pick(r);
-                d.append(b, starBtn(r.path));
+                d.append(b, starBtn(r.path, listRides));
                 el.appendChild(d);
               }
             }
@@ -605,9 +580,9 @@
         confirmPath = r.path;
         confirmEl.hidden = false;
         listEl.hidden = true;
-        confirmEl.innerHTML = `<div>${r.path}<span>${r.scene ? "scene built ✓" : "no scene data yet"}</span></div><div id="stats">reading…</div>`;
+        confirmEl.innerHTML = `<div>${routeName(r.path)}<span>${r.scene ? "scene built ✓" : "no scene data yet"}</span></div><div id="stats">reading…</div>`;
         if (r.scene)
-          fetch(enc(r.path.replace(/\.gpx$/i, "") + ".scene.json"))
+          fetch(enc(scenePath(r.path)))
             .then((s) => s.json())
             .then((s) => {
               if (!(s.version >= 3))
@@ -634,7 +609,12 @@
           }).then(pollBuild);
         });
         btn("Back", () => {});
-        confirmEl.appendChild(starBtn(r.path));
+        confirmEl.appendChild(
+          starBtn(r.path, (np) => {
+            listRides();
+            pick({ ...r, path: np });
+          }),
+        );
         try {
           $("stats").textContent = rideStats(
             parseGpx(await (await fetch(enc(r.path))).text()),
@@ -666,7 +646,7 @@
               !confirmEl.hidden &&
               !$("rideNow")
             )
-              fetch(enc(b.path.replace(/\.gpx$/i, "") + ".scene.json"), {
+              fetch(enc(scenePath(b.path)), {
                 method: "HEAD",
                 cache: "no-store",
               }).then((r) => {
@@ -803,7 +783,7 @@
           json = list.filter((f) => /\.json$/i.test(f.name));
         if (gpx.length && !json.length) {
           const up = await fetch(
-            "upload?f=" + encodeURIComponent("clips/" + gpx[0].name),
+            "upload?f=" + encodeURIComponent("routes/" + gpx[0].name),
             { method: "POST", body: await gpx[0].text() },
           )
             .then((r) => r.ok && r.json())
@@ -832,17 +812,12 @@
           if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
           if (!loadText(await r.text())) return;
           const s = withScene
-            ? await fetch(enc(f.replace(/\.gpx$/i, "") + ".scene.json")).catch(
-                () => null,
-              )
+            ? await fetch(enc(scenePath(f))).catch(() => null)
             : null;
           if (s && s.ok) {
             loadSceneText(await s.text());
             ridePath = f;
-            watchScene(
-              enc(f.replace(/\.gpx$/i, "") + ".scene.json"),
-              s.headers.get("last-modified"),
-            );
+            watchScene(enc(scenePath(f)), s.headers.get("last-modified"));
           }
         } catch (e) {
           notice(`Could not load ${f}: ${e.message}`);
@@ -852,10 +827,6 @@
         try {
           localStorage.setItem("lastRide", f);
         } catch (e) {}
-        store(
-          "recentRides",
-          [f, ...stored("recentRides").filter((x) => x !== f)].slice(0, 5),
-        );
         history.replaceState(null, "", "?f=" + encodeURIComponent(f));
         showMenu(false);
       }

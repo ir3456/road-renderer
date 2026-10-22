@@ -172,6 +172,12 @@
         <button id="markB" title="]">Mark end</button>
         <button id="crop" disabled>Crop</button>
         <button
+          id="reverse"
+          title="Ride it the other way: points reversed, timestamps, power and ghost dropped, elevation kept"
+        >
+          Reverse
+        </button>
+        <button
           id="close"
           title="Append points from the end straight back to the start so the ride loops without a jump"
         >
@@ -686,6 +692,21 @@
             ? `Removed ${count} stop${count > 1 ? "s" : ""}, ${fmt(saved)} and ${ft(drift)} ft of GPS drift`
             : "No stops found",
         );
+      };
+      $("reverse").onclick = () => {
+        if (!ride) return;
+        loadRide({
+          ...ride,
+          name:
+            ride.name.replace(/ reversed$/, "") +
+            (/ reversed$/.test(ride.name) ? "" : " reversed"),
+          hasTime: false,
+          pts: P.slice()
+            .reverse()
+            .map((p) => [0, p[1], p[2], p[3], null, null, 0]),
+        });
+        $("exportname").value = safeName();
+        status(`Reversed: ${P.length} points, now a route without timestamps`);
       };
       $("close").onclick = () => {
         if (!ride) return;

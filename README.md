@@ -7,24 +7,24 @@ Pseudo-3D arcade road (OutRun / OutRunners style) driven by a GPX file: curves, 
 python3 serve.py 8000            # from this folder, then open http://localhost:8000
 node tools/smoke.mjs             # builds every GPX through the pure modules and checks invariants
 ```
-`serve.py` is `http.server` bound to localhost with caching off, so edits show on a plain reload. ES modules do not load from `file://`. It also lists rides (`rides.json`), runs the scene builder (`POST /build?f=`, progress from `build.json`) and accepts uploads into `clips/` and `rides/` (`POST /upload?f=`).
+`serve.py` is `http.server` bound to localhost with caching off, so edits show on a plain reload. ES modules do not load from `file://`. It also lists routes (`rides.json`), runs the scene builder (`POST /build?f=`, progress from `build.json`), moves a route between `routes/` and `routes/favorites/` (`POST /fav?f=`) and accepts uploads into `routes/` and `rides/` (`POST /upload?f=`).
 
 Both pages take GPX files with or without timestamps. A recorded activity (Strava, Sauce, a head unit) has times and gives you recorded speed and a ghost; a planned route (`trkpt` or `rtept`, no times) rides at constant or trainer speed only, and the editor plays it back at 15 mph.
 
 ### Player (`index.html`)
-Press Esc or click the road for the menu. The Ride tab has a Favorites dropdown, the last five rides ridden, and every `.gpx` in the folder, `clips/` and `rides/` under `All rides`; the ☆ next to a ride (and on the confirm pane) toggles it as a favorite. Picking one shows whether its `.scene.json` exists plus miles, elevation gain and duration, and offers Ride, Ride without scene, and Build scene (runs `tools/build_scene.py` through the server; `Stop build` kills it) or Rebuild; when a build finishes the menu returns to that pane rather than starting the ride. The other tabs hold the levers, which persist in local storage along with the last ride's path; `Reset levers` restores defaults. `Load file…` with a lone GPX copies it into `clips/` and goes through the same confirm; drag-drop or picking a GPX together with its scene JSON loads them directly.
+Press Esc or click the road for the menu. The Ride tab lists favorites first, then every other `.gpx` in `routes/` under `All routes`; the ☆ next to a route (and on the confirm pane) moves the file between `routes/` and `routes/favorites/`, so a favorite is just where the file lives. Picking one shows whether its `.scene.json` exists plus miles, elevation gain and duration, and offers Ride, Ride without scene, and Build scene (runs `tools/build_scene.py` through the server; `Stop build` kills it) or Rebuild; when a build finishes the menu returns to that pane rather than starting the ride. The other tabs hold the levers, which persist in local storage along with the last ride's path; `Reset levers` restores defaults. `Load file…` with a lone GPX copies it into `routes/` and goes through the same confirm; drag-drop or picking a GPX together with its scene JSON loads them directly.
 
 Transport bar: Play, speed source (constant mph, recorded × multiplier, live trainer), Ghost toggle with its speed percent, Snap ghost, Connect trainer, scrub. Keys: `space` play, `←`/`→` 50 ft (shift 500 ft), `↑`/`↓` speed 5 mph, `home` start, `g` snap ghost, `,`/`.` shift the virtual gear.
 
 `Start ride` switches the speed source to Live trainer and locks it until the ride ends, recording one sample per second of position, power and cadence. While riding, seeking only works when paused and asks for confirmation; reaching the end pauses with Restart / Join elsewhere / Finish (`Repeat` in the transport bar restarts from the top instead, for looping a short course); `Finish ride` writes a Strava-ready GPX (`VirtualRide`, power and cadence extensions) to `rides/` through the server and downloads it.
 
-URL params: `?f=sample_big_cottonwood.gpx&z=6700` loads a file at a distance in meters (and its `.scene.json` if present); any lever key overrides its saved value (`&farGain=3&theme=flat`).
+URL params: `?f=routes/Big Cottonwood Canyon.gpx&z=6700` loads a file at a distance in meters (and its scene from `routes/scenes/` if present); any lever key overrides its saved value (`&farGain=3&theme=flat`).
 
 ### Editor (`editor.html`)
-Open `http://localhost:8000/editor.html`, optionally with `?f=clips/ride.gpx`, or load / drop a GPX, TCX or FIT file. Playback on a map with an elevation profile; recording gaps longer than 15 s are marked as stops (`,` and `.` jump between them, `Skip stops` collapses them to 1 s). Edits, all applied in place and shown in the status line:
+Open `http://localhost:8000/editor.html`, optionally with `?f=routes/ride.gpx`, or load / drop a GPX, TCX or FIT file. Playback on a map with an elevation profile; recording gaps longer than 15 s are marked as stops (`,` and `.` jump between them, `Skip stops` collapses them to 1 s). Edits, all applied in place and shown in the status line:
 
 - `Fix elevation drift` removes barometric steps (jumps over 4 m that are not explained by the distance moved); `Level start/end` spreads the net drift over the ride; `Reset elevation` undoes both.
-- `Mark start` / `Mark end` (`[` / `]`) then `Crop` keeps the section between them, trimming leading points that stand still or teleport. `Close loop` appends points every 5 m in a straight line from the end back to the start, at the speed held over the last points, so a lap ridden on Repeat has no jump.
+- `Mark start` / `Mark end` (`[` / `]`) then `Crop` keeps the section between them, trimming leading points that stand still or teleport. `Close loop` appends points every 5 m in a straight line from the end back to the start, at the speed held over the last points, so a lap ridden on Repeat has no jump. `Reverse` turns the ride around: points reversed, elevation kept, timestamps, power and therefore the ghost dropped, so it exports as a route without timestamps named `… reversed`.
 - `Remove stops` replaces stops of 3 s up to the limit (lights, stop signs) with the speed held before braking: the window runs from where speed fell below 80% of the pre-stop peak to where it recovers, positions are interpolated in a straight line so GPS drift at the light disappears, and every later timestamp shifts earlier. Only for timed rides.
 - `Export GPX` writes the result with gaps compressed; routes without timestamps export without `<time>`. The file name field also becomes the track's `<name>` inside the GPX, with underscores as spaces, so the ride list and HUD show the name you typed.
 
@@ -51,11 +51,11 @@ The **Trainer** levers model a virtual gear on a single-speed trainer bike: with
 | `index.html` | Player: state, loading, transport, HUD, frame loop. |
 | `editor.html` | Ride editor, standalone (Leaflet only). |
 | `serve.py` | Dev server with ride listing, scene builds and uploads. |
-| `tools/build_scene.py` | Builds `<gpx>.scene.json` from OpenStreetMap + USGS 3DEP. `uv run tools/build_scene.py ride.gpx`. |
-| `tools/clip_gpx.py` | Cuts a distance range out of a GPX: `python3 tools/clip_gpx.py ride.gpx 26.0 27.2 clips/name.gpx "Name"`. |
+| `tools/build_scene.py` | Builds the scene sidecar from OpenStreetMap + USGS 3DEP: `routes/scenes/<name>.scene.json` for a GPX in `routes/` or `routes/favorites/`, beside the GPX anywhere else. `uv run tools/build_scene.py routes/ride.gpx`. |
+| `tools/clip_gpx.py` | Cuts a distance range out of a GPX: `python3 tools/clip_gpx.py ride.gpx 26.0 27.2 routes/name.gpx "Name"`. |
 | `tools/smoke.mjs` | Node smoke test over every GPX and scene in the repo. |
 
-Rides, clips and scene sidecars stay local: `*.gpx`, `*.scene.json` and `clips/` are gitignored, so the repo holds only code. Put any GPX in the folder or `clips/` and it appears in the ride list. Keep clips short while iterating on scene data; Overpass throttles long routes.
+Routes, rides and scene sidecars stay local: `*.gpx`, `*.scene.json`, `routes/` and `rides/` are gitignored, so the repo holds only code. Layout: `routes/` holds the GPX files you ride, `routes/favorites/` the starred ones, `routes/scenes/` every scene sidecar (`Name.scene.json` for `Name.gpx` wherever it sits), and `rides/` the recordings `Finish ride` writes. Only `routes/` is listed. Keep routes short while iterating on scene data; Overpass throttles long ones.
 
 ## Pipeline
 1. Parse `trkpt` / `rtept` lat/lon/ele/time, project to local meters.
