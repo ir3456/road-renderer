@@ -325,8 +325,18 @@ export const LEVERS = [
   },
   { group: "Trainer" },
   {
+    key: "trainerSetup",
+    label: "Trainer bike",
+    options: {
+      cog: "Single cog, virtual shifting",
+      cassette: "Real cassette, real shifting",
+    },
+    def: "cog",
+  },
+  {
     key: "physRing",
-    label: "Physical chainring (teeth)",
+    showIf: (P) => P.trainerSetup === "cog",
+    label: "Trainer bike chainring (teeth)",
     min: 20,
     max: 60,
     step: 1,
@@ -334,7 +344,8 @@ export const LEVERS = [
   },
   {
     key: "physCog",
-    label: "Physical cog (teeth)",
+    showIf: (P) => P.trainerSetup === "cog",
+    label: "Trainer bike cog (teeth)",
     min: 9,
     max: 36,
     step: 1,
@@ -342,6 +353,7 @@ export const LEVERS = [
   },
   {
     key: "virtRing",
+    showIf: (P) => P.trainerSetup === "cog",
     label: "Virtual chainring (teeth)",
     min: 20,
     max: 60,
@@ -350,6 +362,7 @@ export const LEVERS = [
   },
   {
     key: "virtCog",
+    showIf: (P) => P.trainerSetup === "cog",
     label: "Virtual cog (teeth, shift with , and .)",
     min: 9,
     max: 36,
@@ -358,6 +371,7 @@ export const LEVERS = [
   },
   {
     key: "cassette",
+    showIf: (P) => P.trainerSetup === "cog",
     label: "Virtual cassette",
     options: {
       fixed: "Fixed gear (no shifting)",
@@ -370,15 +384,17 @@ export const LEVERS = [
   },
   {
     key: "trainerSpeed",
+    showIf: (P) => P.trainerSetup === "cog",
     label: "Route speed from",
     options: {
-      trainer: "Trainer speed ÷ gear factor",
-      cadence: "Cadence × virtual gear",
+      trainer: "Trainer speed (default)",
+      cadence: "Cadence × virtual gear (needs wheel size)",
     },
     def: "trainer",
   },
   {
     key: "wheel",
+    showIf: (P) => P.trainerSetup === "cog" && P.trainerSpeed === "cadence",
     label: "Wheel circumference (mm)",
     min: 1800,
     max: 2400,
@@ -445,8 +461,10 @@ export function initLevers(pagesEl, onChange) {
       P[lv.key] = lv.options ? inp.value : +inp.value;
       lv.valueEl.textContent = lv.options ? "" : P[lv.key];
       saveLevers();
+      syncLeverUI();
       onChange(lv);
     });
+    lv.row = d;
     d.append(lab, inp);
     pageEl.appendChild(d);
   }
@@ -466,6 +484,7 @@ export function syncLeverUI() {
     if (lv.input) {
       lv.input.value = P[lv.key];
       lv.valueEl.textContent = lv.options ? "" : P[lv.key];
+      lv.row.hidden = lv.showIf ? !lv.showIf(P) : false;
     }
 }
 export function saveLevers() {

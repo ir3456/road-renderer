@@ -839,9 +839,12 @@
         "11-34": [11, 13, 15, 17, 19, 21, 23, 25, 27, 30, 34],
         "12-25": [12, 13, 14, 15, 16, 17, 18, 19, 21, 23, 25],
       };
-      const gearK = () => P.physRing / P.physCog / (P.virtRing / P.virtCog);
+      const gearK = () =>
+        P.trainerSetup === "cassette"
+          ? 1
+          : P.physRing / P.physCog / (P.virtRing / P.virtCog);
       function shift(dir) {
-        const cogs = CASSETTE[P.cassette],
+        const cogs = P.trainerSetup === "cassette" ? [] : CASSETTE[P.cassette],
           next =
             dir > 0
               ? [...cogs].reverse().find((c) => c < P.virtCog)
@@ -1077,7 +1080,7 @@
         $("hud").textContent =
           `${track.name}\n` +
           `Current ride:   ${fmt(clock)}   ${(ridden / MI).toFixed(2)} mi   ${mph(clock ? ridden / clock : 0, 1)} avg\n` +
-          `Current data:   ${mph(speedNow())}   ${kickr.live.power} W   ${kickr.live.cadence} rpm   ${P.virtRing}×${P.virtCog}\n` +
+          `Current data:   ${mph(speedNow())}   ${kickr.live.power} W   ${kickr.live.cadence} rpm${P.trainerSetup === "cassette" ? "" : `   ${P.virtRing}×${P.virtCog}`}\n` +
           `Map data:       ${dir}   ${(road.ele[i] * FT).toFixed(0)} ft   ${grade.toFixed(1)}%` +
           ghostLine +
           `\nGPX file data:  ${(playerZ / MI).toFixed(2)} / ${(road.total / MI).toFixed(2)} mi   ${((playerZ / road.total) * 100).toFixed(0)}%   lap ${laps + 1}`;
@@ -1096,7 +1099,7 @@
           dt = Math.min(kickr.live.device ? 5 : 0.1, (now - lastStep) / 1000);
         lastStep = now;
         const vRaw =
-          P.trainerSpeed === "cadence"
+          P.trainerSetup === "cog" && P.trainerSpeed === "cadence"
             ? kickr.speed()
               ? ((((kickr.live.cadence / 60) * P.virtRing) / P.virtCog) *
                   P.wheel) /
