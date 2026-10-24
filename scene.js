@@ -81,6 +81,9 @@ function sets(tags, useNlcd) {
   return out;
 }
 
+const family = (kind) =>
+  ["pine", "tree", "anytree"].includes(kind) ? "tree" : kind;
+
 const hash = (i, s) => {
   const v = Math.sin(i * 12.9898 + s * 78.233) * 43758.5453;
   return v - Math.floor(v);
@@ -227,8 +230,18 @@ export function applyScene(road, scene, P) {
       : null;
   const points = [],
     mapped = {};
-  if (P.mapPoints === "on" && scene.pts)
-    for (const [si, off, tags] of scene.pts) {
+  let pts = scene.pts || [];
+  if (P.lidar === "on" && scene.lidar) {
+    const isTree = (p) => /(^|;)natural=tree(;|$)/.test(p[2]),
+      typed = pts.filter((p) => isTree(p) && /leaf_type=/.test(p[2])),
+      near = (a, b) => Math.hypot((a[0] - b[0]) * scene.step, a[1] - b[1]) < 5;
+    pts = [
+      ...pts.filter((p) => !isTree(p) || typed.includes(p)),
+      ...scene.lidar.filter((l) => !typed.some((o) => near(o, l))),
+    ];
+  }
+  if (P.mapPoints === "on")
+    for (const [si, off, tags] of pts) {
       const i = Math.round((si * scene.step) / road.L),
         t = parseTags(tags),
         name = resolve(t),
@@ -250,9 +263,10 @@ export function applyScene(road, scene, P) {
         kind,
         offset: side * Math.max(1.5, Math.abs(off) - hw),
         meters: parseFloat(t.height) || undefined,
+        width: parseFloat(t.width) || undefined,
         levels: +t["building:levels"] || set.levels,
       });
-      const near = (mapped[kind + side] ||= new Uint8Array(road.n)),
+      const near = (mapped[family(kind) + side] ||= new Uint8Array(road.n)),
         r = Math.round(50 / road.L);
       near.fill(1, Math.max(0, i - r), i + r + 1);
     }
@@ -279,7 +293,7 @@ export function applyScene(road, scene, P) {
         if (pick <= 0) break;
       }
       const kind = o.sprites[Math.floor(hash(i, side + 6) * o.sprites.length)];
-      if (mapped[kind + side]?.[i]) continue;
+      if (mapped[family(kind) + side]?.[i]) continue;
       const offset =
           side *
           (o.far ? 8 + hash(i, side + 4) * 20 : 2 + hash(i, side + 4) * 14),

@@ -1,6 +1,6 @@
 # /// script
 # requires-python = ">=3.11"
-# dependencies = ["numpy"]
+# dependencies = ["numpy", "laspy[lazrs]"]
 # ///
 """Build a scene sidecar for a GPX: roadside tags from OpenStreetMap, side slopes and a real skyline from USGS 3DEP.
 
@@ -197,7 +197,7 @@ def osm_keys(section, keys):
         if isinstance(v, dict):
             for k, sub in v.items(): keys.add(k); osm_keys(sub, keys)
     return keys
-OSM_KEYS = sorted({'height'} | osm_keys({'': json.load(open(os.path.join(os.path.dirname(TILES), 'classes.json')))['osm']}, set()))
+OSM_KEYS = sorted({'height', 'width'} | osm_keys({'': json.load(open(os.path.join(os.path.dirname(TILES), 'classes.json')))['osm']}, set()))
 POINT_REACH = 40
 
 
@@ -252,15 +252,6 @@ def osm_tags(elements, xs, ys, cos0, lx, ly, rx, ry):
             for i in np.flatnonzero(near_line(line, rx, ry, dist)): right[i].add(tok)
     j = lambda s: '+'.join(sorted(s))
     return [j(s) for s in left], [j(s) for s in right]
-
-
-def lidar_trees(elements):
-    """Elements with OSM's mapped trees replaced, inside every box tools/lidar_trees.py has written, by the trees it detected there with their heights."""
-    for f in glob.glob(os.path.join(TILES, 'lidar', '*.trees.json')):
-        d = json.load(open(f)); s, w, n, e = d['bbox']
-        elements = [x for x in elements if not (x.get('tags', {}).get('natural') == 'tree' and s <= x.get('lat', 0) <= n and w <= x.get('lon', 0) <= e)]
-        elements += [{'type': 'node', 'lat': la, 'lon': lo, 'tags': {'natural': 'tree', 'height': str(h)}} for la, lo, h in d['trees']]
-    return elements
 
 
 def osm_points(elements, xs, ys, cos0, hx, hy, nx, ny):
@@ -630,7 +621,7 @@ def build(xs, ys, cos0, a):
         print('OSM via Overpass', file=sys.stderr)
         els = overpass_tiles(xs, ys, cos0)
         scene['left'], scene['right'] = osm_tags(els, xs, ys, cos0, lx, ly, rx, ry)
-        scene['pts'] = osm_points(lidar_trees(els), xs, ys, cos0, hx, hy, nx, ny)
+        scene['pts'] = osm_points(els, xs, ys, cos0, hx, hy, nx, ny)
         scene['waterL'], scene['waterR'] = water_sides(els, cos0, xs, ys, nx, ny)
         hwys = highways(els, cos0); match = match_route(hwys, xs, ys)
         scene['sideL'], scene['sideR'] = side_ways(hwys, match, xs, ys, hx, hy, nx, ny)
@@ -648,6 +639,19 @@ def build(xs, ys, cos0, a):
             la, lo = to_ll(px, py, cos0)
             codes = Dem(lo.min() - 0.001, la.min() - 0.001, lo.max() + 0.001, la.max() + 0.001, NLCD_LAYER).nearest(la, lo)
             scene[key] = [s + ('+' if s else '') + f'nlcd={int(c)}' if c == c and c > 0 else s for s, c in zip(scene[key], codes)]
+    if a.lidar and 'left' in scene:
+        import lidar_trees
+        print('USGS 3DEP lidar trees', file=sys.stderr)
+        forest = {'nlcd=41', 'nlcd=42', 'nlcd=43'}
+        need = np.array([not (forest & set(l.split('+')) and forest & set(r.split('+'))) for l, r in zip(scene['left'], scene['right'])])
+        la, lo = to_ll(xs[need], ys[need], cos0)
+        trees = lidar_trees.trees_near(la, lo, POINT_REACH) if need.any() else []
+        if trees:
+            t = np.array(trees)
+            nl = Dem(t[:, 1].min() - 0.001, t[:, 0].min() - 0.001, t[:, 1].max() + 0.001, t[:, 0].max() + 0.001, NLCD_LAYER).nearest(t[:, 0], t[:, 1])
+            trees = [tr for tr, c in zip(trees, nl) if f'nlcd={int(c) if c == c else 0}' not in forest]
+        scene['lidar'] = osm_points([{'type': 'node', 'lat': la, 'lon': lo, 'tags': {'natural': 'tree', 'height': str(h), 'width': str(w)}} for la, lo, h, w in trees], xs, ys, cos0, hx, hy, nx, ny)
+        print(f'  {len(scene["lidar"])} lidar trees within {POINT_REACH} m outside NLCD forest', file=sys.stderr)
     if not a.no_terrain:
         print('USGS 3DEP', file=sys.stderr)
         pl, pr = side_slopes(xs, ys, cos0, nx, ny)
@@ -659,7 +663,7 @@ def build(xs, ys, cos0, a):
 
 def main():
     """Builds the scene in passes over growing prefixes of the route, about one OSM tile apart, writing the file after each pass that had to download tiles, so a ride is playable while the rest is still arriving; the last pass is the whole route."""
-    ap = argparse.ArgumentParser(); ap.add_argument('gpx'); ap.add_argument('--no-osm', action='store_true'); ap.add_argument('--no-terrain', action='store_true')
+    ap = argparse.ArgumentParser(); ap.add_argument('gpx'); ap.add_argument('--no-osm', action='store_true'); ap.add_argument('--no-terrain', action='store_true'); ap.add_argument('--lidar', action='store_true', help='detect individual trees from 3DEP lidar where NLCD is not forest')
     a = ap.parse_args()
     lat, lon = read_gpx(a.gpx)
     xs, ys, s, cos0 = resample(lat, lon, STEP)

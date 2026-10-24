@@ -606,9 +606,14 @@
         if (r.scene) btn("Ride without scene", () => loadUrl(r.path, false));
         btn(r.scene ? "Rebuild scene" : "Build scene", () => {
           buildTarget = r.path;
-          fetch("build?f=" + encodeURIComponent(r.path), {
-            method: "POST",
-          }).then(pollBuild);
+          fetch(
+            "build?f=" +
+              encodeURIComponent(r.path) +
+              (P.lidar === "on" ? "&lidar=1" : ""),
+            {
+              method: "POST",
+            },
+          ).then(pollBuild);
         });
         btn("Back", () => {});
         confirmEl.appendChild(

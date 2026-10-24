@@ -201,6 +201,7 @@ function blit(
   flip = false,
   levels,
   meters = s.meters,
+  width,
 ) {
   const sh = Math.round(meters * ppm);
   if (sh < 1) return;
@@ -220,7 +221,13 @@ function blit(
       );
     return;
   }
-  const sw = Math.max(1, Math.round((sh * s.w) / s.h)),
+  const nat = (sh * s.w) / s.h,
+    sw = Math.max(
+      1,
+      Math.round(
+        width ? Math.min(1.4 * nat, Math.max(0.7 * nat, width * ppm)) : nat,
+      ),
+    ),
     [fx, fy] = s.frames[frame % s.frames.length];
   const dx = Math.round(sx - (flip ? 1 - s.ax : s.ax) * sw),
     dy = Math.round(sy - s.ay * sh),
@@ -488,6 +495,7 @@ export function drawSprites(ctx, frame, P, assets, kinds, pal) {
         s.flip && sp.offset > 0,
         sp.levels,
         sp.meters,
+        sp.width,
       );
     }
   }

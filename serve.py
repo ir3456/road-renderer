@@ -8,8 +8,8 @@ def rides():
 def scene_of(path):
     return os.path.join('routes', 'scenes', os.path.basename(path)[:-4] + '.scene.json')
 
-def run_build(path):
-    build.update(path=path, log=[], proc=subprocess.Popen(['uv', 'run', 'tools/build_scene.py', path], stderr=subprocess.PIPE, text=True))
+def run_build(path, lidar):
+    build.update(path=path, log=[], proc=subprocess.Popen(['uv', 'run', 'tools/build_scene.py', path] + (['--lidar'] if lidar else []), stderr=subprocess.PIPE, text=True))
     for line in build['proc'].stderr:
         build['log'].append(line.rstrip())
     build['proc'].wait()
@@ -36,10 +36,10 @@ class H(http.server.SimpleHTTPRequestHandler):
         super().do_GET()
 
     def do_POST(self):
-        path = urllib.parse.unquote(self.path.split('?f=', 1)[-1])
+        q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query); path = q.get('f', [''])[0]
         p = build['proc']
         if self.path.startswith('/build?f=') and path in rides() and (p is None or p.poll() is not None):
-            threading.Thread(target=run_build, args=(path,), daemon=True).start()
+            threading.Thread(target=run_build, args=(path, q.get('lidar') == ['1']), daemon=True).start()
             return self.reply({'ok': True})
         if self.path == '/stop' and p is not None and p.poll() is None:
             p.terminate()
