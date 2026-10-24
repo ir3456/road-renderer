@@ -294,6 +294,13 @@ export function applyScene(road, scene, P) {
       }
       const kind = o.sprites[Math.floor(hash(i, side + 6) * o.sprites.length)];
       if (mapped[family(kind) + side]?.[i]) continue;
+      if (
+        P.lidar === "on" &&
+        scene.lidar &&
+        scene.lidarCover?.[j] &&
+        family(kind) === "tree"
+      )
+        continue;
       const offset =
           side *
           (o.far ? 8 + hash(i, side + 4) * 20 : 2 + hash(i, side + 4) * 14),

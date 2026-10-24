@@ -1,6 +1,6 @@
 # /// script
 # requires-python = ">=3.11"
-# dependencies = ["numpy", "laspy[lazrs]"]
+# dependencies = ["numpy", "laspy[lazrs]", "pyproj"]
 # ///
 """Build a scene sidecar for a GPX: roadside tags from OpenStreetMap, side slopes and a real skyline from USGS 3DEP.
 
@@ -642,16 +642,14 @@ def build(xs, ys, cos0, a):
     if a.lidar and 'left' in scene:
         import lidar_trees
         print('USGS 3DEP lidar trees', file=sys.stderr)
-        forest = {'nlcd=41', 'nlcd=42', 'nlcd=43'}
-        need = np.array([not (forest & set(l.split('+')) and forest & set(r.split('+'))) for l, r in zip(scene['left'], scene['right'])])
-        la, lo = to_ll(xs[need], ys[need], cos0)
-        trees = lidar_trees.trees_near(la, lo, POINT_REACH) if need.any() else []
-        if trees:
-            t = np.array(trees)
-            nl = Dem(t[:, 1].min() - 0.001, t[:, 0].min() - 0.001, t[:, 1].max() + 0.001, t[:, 0].max() + 0.001, NLCD_LAYER).nearest(t[:, 0], t[:, 1])
-            trees = [tr for tr, c in zip(trees, nl) if f'nlcd={int(c) if c == c else 0}' not in forest]
-        scene['lidar'] = osm_points([{'type': 'node', 'lat': la, 'lon': lo, 'tags': {'natural': 'tree', 'height': str(h), 'width': str(w)}} for la, lo, h, w in trees], xs, ys, cos0, hx, hy, nx, ny)
-        print(f'  {len(scene["lidar"])} lidar trees within {POINT_REACH} m outside NLCD forest', file=sys.stderr)
+        la, lo = to_ll(xs, ys, cos0)
+        trees, covered = lidar_trees.trees_near(la, lo, POINT_REACH)
+        leaf = {41: 'broadleaved', 42: 'needleleaved', 90: 'broadleaved'}
+        nl = Dem(min(t[1] for t in trees) - 0.001, min(t[0] for t in trees) - 0.001, max(t[1] for t in trees) + 0.001, max(t[0] for t in trees) + 0.001, NLCD_LAYER).nearest(np.array([t[0] for t in trees]), np.array([t[1] for t in trees])) if trees else []
+        scene['lidar'] = osm_points([{'type': 'node', 'lat': a_, 'lon': o_, 'tags': {'natural': 'tree', 'height': str(h), 'width': str(w), **({'leaf_type': leaf[int(c)]} if c == c and int(c) in leaf else {})}} for (a_, o_, h, w), c in zip(trees, nl)], xs, ys, cos0, hx, hy, nx, ny)
+        mx, my = lidar_trees.merc(la, lo)
+        scene['lidarCover'] = [int((int(x // lidar_trees.TILE), int(y // lidar_trees.TILE)) in covered) for x, y in zip(mx, my)]
+        print(f'  {len(scene["lidar"])} lidar trees within {POINT_REACH} m, {sum(scene["lidarCover"])} of {len(xs)} samples covered', file=sys.stderr)
     if not a.no_terrain:
         print('USGS 3DEP', file=sys.stderr)
         pl, pr = side_slopes(xs, ys, cos0, nx, ny)
@@ -663,7 +661,7 @@ def build(xs, ys, cos0, a):
 
 def main():
     """Builds the scene in passes over growing prefixes of the route, about one OSM tile apart, writing the file after each pass that had to download tiles, so a ride is playable while the rest is still arriving; the last pass is the whole route."""
-    ap = argparse.ArgumentParser(); ap.add_argument('gpx'); ap.add_argument('--no-osm', action='store_true'); ap.add_argument('--no-terrain', action='store_true'); ap.add_argument('--lidar', action='store_true', help='detect individual trees from 3DEP lidar where NLCD is not forest')
+    ap = argparse.ArgumentParser(); ap.add_argument('gpx'); ap.add_argument('--no-osm', action='store_true'); ap.add_argument('--no-terrain', action='store_true'); ap.add_argument('--lidar', action='store_true', help='detect individual trees from the newest 3DEP lidar along the route, typed by NLCD')
     a = ap.parse_args()
     lat, lon = read_gpx(a.gpx)
     xs, ys, s, cos0 = resample(lat, lon, STEP)
