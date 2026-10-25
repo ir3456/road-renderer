@@ -9,7 +9,7 @@ Detection is classic individual tree detection on a canopy height model: ground 
 Two sources: the streamable Entwine copy on AWS, which holds only some flights, and the USGS catalog (TNM), which holds every flight as 1 km LAZ files of 100-200 MB with no spatial index. For each 250 m web-mercator tile the most recently flown source wins, the streamable one on a tie. A catalog file is downloaded whole, so once it is in memory every 250 m tile its points fully cover is processed and cached, not just the ones the route needs; edge tiles that need a neighbouring file are done when a route asks for them. Results live in one SQLite file, tiles/lidar/trees.sqlite: `tiles` records every 250 m tile processed and from which flight, `trees` holds every detected tree keyed by its tile, and `catalog` caches the USGS catalog lookup per tile, so no file is downloaded twice for tiles already done and the catalog is asked once per tile; raw points are not kept.
 
     uv run tools/lidar_trees.py south west north east     prints the trees in a box as JSON lines"""
-import concurrent.futures, io, json, math, os, re, sqlite3, sys, time, urllib.parse, urllib.request, warnings
+import concurrent.futures, io, json, math, os, re, sqlite3, sys, threading, time, urllib.parse, urllib.request, warnings
 import numpy as np, laspy, pyproj
 
 INDEX = 'https://raw.githubusercontent.com/hobuinc/usgs-lidar/master/boundaries/resources.geojson'
@@ -19,6 +19,8 @@ TILE = 250
 PAD = 12
 MIN_H = 4
 RES = 0.6
+PACE = 3
+_pace, _last = threading.Lock(), [0.0]
 R = 6378137
 _index, _ept, _hier, _laz, _files, _db = None, {}, {}, {}, {}, None
 
@@ -48,24 +50,23 @@ def store(project, tx, ty, trees):
         db().executemany('insert into trees values (?, ?, ?, ?, ?, ?, ?)', [(project, tx, ty, *t) for t in trees])
 
 
-def get(url):
-    for k in range(4):
+def get(url, headers={}, timeout=90, method=None):
+    """Requests to the USGS file server start PACE seconds apart across threads, since it answers faster request rates with 429; a HEAD returns the response headers."""
+    for k in range(40):
+        if 'rockyweb' in url:
+            with _pace: time.sleep(max(0, _last[0] + PACE - time.time())); _last[0] = time.time()
         try:
-            with urllib.request.urlopen(url, timeout=90) as r: return r.read()
-        except Exception:
-            if k == 3: raise
+            with urllib.request.urlopen(urllib.request.Request(url, headers=headers, method=method), timeout=timeout) as r: return r.headers if method == 'HEAD' else r.read()
+        except Exception as e:
+            if k == 39: raise
+            if getattr(e, 'code', None) != 429: print(f'  {e}, retrying', file=sys.stderr); time.sleep(min(300, 15 * 2 ** k))
 
 
 def get_big(url, parts=16):
     """A large file fetched as parallel byte ranges, since the USGS file server throttles each connection to roughly 0.1 MB/s."""
-    with urllib.request.urlopen(urllib.request.Request(url, method='HEAD'), timeout=90) as r: size = int(r.headers['Content-Length'])
+    size = int(get(url, method='HEAD')['Content-Length'])
     step = -(-size // parts)
-    def part(a):
-        for k in range(5):
-            try:
-                with urllib.request.urlopen(urllib.request.Request(url, headers={'Range': f'bytes={a}-{min(size, a + step) - 1}'}), timeout=300) as r: return r.read()
-            except Exception:
-                if k == 4: raise
+    def part(a): return get(url, {'Range': f'bytes={a}-{min(size, a + step) - 1}'}, 300)
     with concurrent.futures.ThreadPoolExecutor(parts) as pool: return b''.join(pool.map(part, range(0, size, step)))
 
 
