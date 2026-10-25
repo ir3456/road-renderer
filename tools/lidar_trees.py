@@ -222,11 +222,11 @@ def tile_trees(tx, ty):
         mine = [f for f in files if f[1] == name]
         cols = [tnm_points(f[2]) for f in mine]
         out = detect_tile(tx, ty, [np.concatenate([c[i] for c in cols]) for i in range(5)])
-        for f in mine:
-            x, y = _files[f[2]][0], _files[f[2]][1]; k = math.cos(math.radians(float(la))); pad = PAD / k
+        for c in cols:
+            x, y = c[0], c[1]; k = math.cos(math.radians(float(la))); pad = PAD / k
             for ix in range(int((x.min() + pad) // TILE) + 1, int((x.max() - pad) // TILE)):
                 for iy in range(int((y.min() + pad) // TILE) + 1, int((y.max() - pad) // TILE)):
-                    if cached(name, ix, iy) is None: store(name, ix, iy, detect_tile(ix, iy, _files[f[2]]))
+                    if cached(name, ix, iy) is None: store(name, ix, iy, detect_tile(ix, iy, c))
     store(name, tx, ty, out)
     return out
 
