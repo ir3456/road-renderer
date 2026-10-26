@@ -180,10 +180,12 @@ def tnm_files(tx, ty):
 
 
 def tnm_points(url):
-    """Every point of one catalog LAZ file, in web mercator, keeping the last few files in memory."""
+    """Every point of one catalog LAZ file, in web mercator, keeping the last few files in memory and every file on disk, since tiles on file edges keep needing their neighbours."""
     if url not in _files:
         if len(_files) >= 4: _files.pop(next(iter(_files)))
-        t = time.time(); body = get_big(url); t1 = time.time()
+        path = os.path.join(OUT, 'laz', url.rsplit('/', 1)[-1])
+        t = time.time(); body = open(path, 'rb').read() if os.path.exists(path) else get_big(url); t1 = time.time()
+        if not os.path.exists(path): os.makedirs(os.path.dirname(path), exist_ok=True); open(path + '.tmp', 'wb').write(body); os.replace(path + '.tmp', path)
         las = laspy.read(io.BytesIO(body)); crs = las.header.parse_crs() or pyproj.CRS.from_epsg(6341)
         x, y = pyproj.Transformer.from_crs(crs.to_2d() if hasattr(crs, 'to_2d') else crs, 3857, always_xy=True).transform(np.asarray(las.x), np.asarray(las.y))
         z = np.asarray(las.z) * (0.3048 if 'foot' in str(crs.axis_info[-1].unit_name if crs.axis_info else '') else 1)
