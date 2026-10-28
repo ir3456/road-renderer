@@ -570,6 +570,12 @@
                   b = document.createElement("button");
                 d.className = "ride" + (r.path === ridePath ? " on" : "");
                 b.innerHTML = `${routeName(r.path)}<span>${r.scene ? "scene" : "no scene"}</span>`;
+                listStats(r.path).then(
+                  (st) =>
+                    st &&
+                    (b.querySelector("span").textContent =
+                      `${st} · ${r.scene ? "scene" : "no scene"}`),
+                );
                 b.onclick = () => pick(r);
                 d.append(b, starBtn(r.path, listRides));
                 el.appendChild(d);
@@ -630,13 +636,29 @@
           $("stats").textContent = "unreadable: " + e.message;
         }
       }
-      function rideStats(t) {
+      const statsCache = new Map();
+      /** Distance and climb of a listed route, each file fetched and parsed once per page load. */
+      function listStats(p) {
+        if (!statsCache.has(p))
+          statsCache.set(
+            p,
+            fetch(enc(p))
+              .then((r) => r.text())
+              .then((t) => distGain(parseGpx(t)))
+              .catch(() => ""),
+          );
+        return statsCache.get(p);
+      }
+      function distGain(t) {
         const sm = smooth(t.ele, Math.round((50 * t.ele.length) / t.total));
         let gain = 0;
         for (let i = 1; i < sm.length; i++)
           gain += Math.max(0, sm[i] - sm[i - 1]);
+        return `${(t.total / 1609.344).toFixed(1)} mi · ${(gain * 3.28084).toFixed(0)} ft gain`;
+      }
+      function rideStats(t) {
         const dur = t.t ? t.t[t.t.length - 1] - t.t[0] : null;
-        return `${(t.total / 1609.344).toFixed(1)} mi · ${(gain * 3.28084).toFixed(0)} ft gain · ${dur ? `${Math.floor(dur / 3600)}:${String(Math.floor((dur % 3600) / 60)).padStart(2, "0")}` : "no timestamps"}`;
+        return `${distGain(t)} · ${dur ? `${Math.floor(dur / 3600)}:${String(Math.floor((dur % 3600) / 60)).padStart(2, "0")}` : "no timestamps"}`;
       }
       function pollBuild() {
         clearTimeout(buildTimer);
