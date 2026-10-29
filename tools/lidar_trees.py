@@ -248,8 +248,11 @@ def ugrc_chm(surface, ground):
             z = zipfile.ZipFile(path); page = tifffile.TiffFile(io.BytesIO(z.read(next(n for n in z.namelist() if n.lower().endswith('.tif'))))).pages[0]
             keys = page.tags['GeoKeyDirectoryTag'].value; epsg = dict(zip(keys[4::4], keys[7::4])).get(3072, 26912)
             grids.append((page.asarray().astype(np.float32), page.tags['ModelTiepointTag'].value[3:5], page.tags['ModelPixelScaleTag'].value[0], epsg))
-        (s, (x0, y1), px, epsg), (g, *_) = grids
-        chm = np.where((s > -1000) & (g > -1000), np.clip(s - g, 0, 60), 0)
+        (s, (x0, y1), px, epsg), (g, (gx, gy), *_) = grids
+        ox, oy = round((gx - x0) / px), round((y1 - gy) / px)
+        r0, r1, c0, c1 = max(0, oy), min(s.shape[0], oy + g.shape[0]), max(0, ox), min(s.shape[1], ox + g.shape[1])
+        s, g, x0, y1 = s[r0:r1, c0:c1], g[r0 - oy:r1 - oy, c0 - ox:c1 - ox], x0 + c0 * px, y1 - r0 * px
+        chm =np.where((s > -1000) & (g > -1000), np.clip(s - g, 0, 60), 0)
         n = chm.shape[0] // 2 * 2; m = chm.shape[1] // 2 * 2
         chm = chm[:n, :m].reshape(n // 2, 2, m // 2, 2).mean(axis=(1, 3)) if px < 0.75 else chm
         step = px * 2 if px < 0.75 else px
