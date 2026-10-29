@@ -1,4 +1,13 @@
-export const live = { speed: 0, cadence: 0, power: 0, at: 0, device: null };
+export const live = {
+  speed: 0,
+  cadence: 0,
+  power: 0,
+  at: 0,
+  device: null,
+  hr: 0,
+  hrAt: 0,
+  hrDevice: null,
+};
 let cp = null,
   queue = Promise.resolve(),
   listener = () => {};
@@ -53,6 +62,50 @@ export function setGrade(pct, crr, cw, k = 1) {
     write(b.buffer);
   }
   return g;
+}
+
+export function hr() {
+  return performance.now() - live.hrAt > 5000 ? 0 : live.hr;
+}
+
+/** Any standard Bluetooth heart rate sensor, such as a chest strap or a phone relaying AirPods. */
+export async function connectHr(onStatus) {
+  if (live.hrDevice) {
+    live.hrDevice.gatt.disconnect();
+    return;
+  }
+  if (!navigator.bluetooth) {
+    onStatus("Web Bluetooth not available (use Chrome)");
+    return;
+  }
+  try {
+    onStatus("Choose the heart rate sensor…");
+    const device = await navigator.bluetooth.requestDevice({
+      filters: [{ services: [0x180d] }],
+    });
+    device.addEventListener("gattserverdisconnected", () => {
+      live.hrDevice = null;
+      live.hr = 0;
+      onStatus("HR disconnected");
+    });
+    const data = await (
+      await (await device.gatt.connect()).getPrimaryService(0x180d)
+    ).getCharacteristic(0x2a37);
+    data.addEventListener("characteristicvaluechanged", (e) => {
+      const dv = e.target.value;
+      live.hr = dv.getUint8(0) & 1 ? dv.getUint16(1, true) : dv.getUint8(1);
+      live.hrAt = performance.now();
+    });
+    await data.startNotifications();
+    live.hrDevice = device;
+    onStatus(`HR: ${device.name || "sensor"}`);
+  } catch (err) {
+    onStatus(
+      err.name === "NotFoundError"
+        ? "No device chosen"
+        : "HR connect failed: " + err.message,
+    );
+  }
 }
 
 export async function connect(onStatus, onDisconnect) {

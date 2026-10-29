@@ -445,6 +445,8 @@
           </button>
           <button id="connectBtn">Connect trainer</button
           ><span class="stat" id="kstatus"></span>
+          <button id="hrBtn">Connect HR</button
+          ><span class="stat" id="hrStatus"></span>
           <input type="range" id="scrub" min="0" max="1000" value="0" />
           <span class="stat" id="pos"></span>
         </div>
@@ -1059,6 +1061,13 @@
         e.preventDefault();
         loadFiles(e.dataTransfer.files);
       });
+      $("hrBtn").onclick = () =>
+        kickr.connectHr((msg) => {
+          $("hrStatus").textContent = msg;
+          $("hrBtn").textContent = kickr.live.hrDevice
+            ? "Disconnect HR"
+            : "Connect HR";
+        });
       connectBtn.onclick = () =>
         kickr.connect(
           (msg) => {
@@ -1134,7 +1143,7 @@
         $("hud").textContent =
           `${track.name}\n` +
           `Current ride:   ${fmt(clock)}   ${(ridden / MI).toFixed(2)} mi   ${mph(clock ? ridden / clock : 0, 1)} avg\n` +
-          `Current data:   ${mph(speedNow())}   ${kickr.live.power} W   ${kickr.live.cadence} rpm${P.trainerSetup === "cassette" ? "" : `   ${P.virtRing}×${P.virtCog}`}\n` +
+          `Current data:   ${mph(speedNow())}   ${kickr.live.power} W   ${kickr.live.cadence} rpm${kickr.live.hrDevice ? `   ${kickr.hr()} bpm` : ""}${P.trainerSetup === "cassette" ? "" : `   ${P.virtRing}×${P.virtCog}`}\n` +
           `Map data:       ${dir}   ${(road.ele[i] * FT).toFixed(0)} ft   ${grade.toFixed(1)}%` +
           ghostLine +
           `\nGPX file data:  ${(playerZ / MI).toFixed(2)} / ${(road.total / MI).toFixed(2)} mi   ${((playerZ / road.total) * 100).toFixed(0)}%   lap ${laps + 1}`;
