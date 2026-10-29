@@ -473,7 +473,7 @@
         saveLevers,
         resetLevers,
       } from "./levers.js";
-      import { drawGauge } from "./hud.js";
+      import { drawBars, drawGauge } from "./hud.js";
       import { createMinimap } from "./minimap.js";
       import { createProfile } from "./profile.js";
 
@@ -1240,6 +1240,8 @@
             assets,
             actors,
             (c, w, h) => {
+              if (road && P.bars !== "off")
+                drawBars(c, w, h, assets, road, playerZ, P.bars, P.barsRadius);
               if (road && P.gauge === "on")
                 drawGauge(
                   c,

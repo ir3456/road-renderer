@@ -208,6 +208,21 @@ export const LEVERS = [
     def: 4,
   },
   {
+    key: "bars",
+    label: "Handlebars",
+    options: { off: "Off", flat: "Flat bars", road: "Road bars" },
+    def: "off",
+  },
+  {
+    key: "barsRadius",
+    showIf: (P) => P.bars !== "off",
+    label: "Lean the bars on turns tighter than (m radius)",
+    min: 10,
+    max: 200,
+    step: 5,
+    def: 40,
+  },
+  {
     key: "riderSprite",
     label: "Rider sprite",
     options: { on: "Show", off: "Hide" },

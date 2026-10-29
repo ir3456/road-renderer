@@ -74,5 +74,23 @@
     "frameW": 41,
     "frameH": 21,
     "frames": 32
+  },
+  "flat_bars_l": {
+    "file": "flat_bars_l.png"
+  },
+  "flat_bars_c": {
+    "file": "flat_bars_c.png"
+  },
+  "flat_bars_r": {
+    "file": "flat_bars_r.png"
+  },
+  "road_bars_l": {
+    "file": "road_bars_l.png"
+  },
+  "road_bars_c": {
+    "file": "road_bars_c.png"
+  },
+  "road_bars_r": {
+    "file": "road_bars_r.png"
   }
 }
