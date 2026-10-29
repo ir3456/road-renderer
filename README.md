@@ -9,6 +9,8 @@ node tools/smoke.mjs             # builds every GPX through the pure modules and
 ```
 `serve.py` is `http.server` bound to localhost with caching off, so edits show on a plain reload. ES modules do not load from `file://`. It also lists routes (`rides.json`), runs the scene builder (`POST /build?f=`, progress from `build.json`), moves a route between `routes/` and `routes/favorites/` (`POST /fav?f=`) and accepts uploads into `routes/` and `rides/` (`POST /upload?f=`).
 
+All data lives in three ignored folders: `routes/` (route GPX files, `favorites/`, built `scenes/`), `tiles/` (every download and processed cache, including raw lidar and `lidar/trees.sqlite`) and `rides/` (recorded rides). To ride on another machine, check out the code and copy them over, e.g. `rsync -av other-mac:workout/road_renderer/{routes,tiles,rides} ~/workout/road_renderer/`; with `tiles/` copied, building a scene over ground already covered downloads nothing.
+
 Both pages take GPX files with or without timestamps. A recorded activity (Strava, Sauce, a head unit) has times and gives you recorded speed and a ghost; a planned route (`trkpt` or `rtept`, no times) rides at constant or trainer speed only, and the editor plays it back at 15 mph.
 
 ### Player (`index.html`)
