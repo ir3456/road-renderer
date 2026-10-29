@@ -84,3 +84,17 @@ function needle(ctx, sheet, x0, y0, deg) {
   );
   ctx.restore();
 }
+
+/** Handlebars and red top tube centered at the bottom of the frame, swapped to the left or right sprite while the next 15 m of road turns tighter than radius meters. */
+export function drawBars(ctx, W, H, assets, road, z, style, radius) {
+  const i = Math.min(road.n - 2, Math.floor(z / road.L)),
+    j = Math.min(road.n - 1, i + Math.ceil(15 / road.L));
+  let turn = 0;
+  for (let k = i + 1; k <= j; k++) turn += road.dTheta[k];
+  const curv = turn / ((j - i) * road.L || 1),
+    side = curv > 1 / radius ? "l" : curv < -1 / radius ? "r" : "c",
+    bars = assets[`${style}_bars_${side}`];
+  if (!bars) return;
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(bars.img, Math.round((W - bars.w) / 2), H - bars.h);
+}
