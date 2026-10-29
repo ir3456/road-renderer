@@ -62,20 +62,27 @@ function resolve(t) {
 }
 
 const setCache = new Map();
-/** The area sets a sample side's OSM tag string resolves to, one entry per set. */
-function sets(tags) {
-  if (setCache.has(tags)) return setCache.get(tags);
-  const out = [];
-  for (const el of tags.split("+")) {
-    const t = parseTags(el),
-      name = resolve(t),
+/** The area sets a sample side's tag string resolves to, one entry per set. The side's USGS land cover class (nlcd=…) is visible to every element's nested lookups, and its own set only fills in when nothing from OSM does. */
+function sets(tags, useNlcd) {
+  const key = useNlcd + tags;
+  if (setCache.has(key)) return setCache.get(key);
+  const els = tags.split("+").map(parseTags),
+    nlcd = useNlcd ? els.find((t) => "nlcd" in t)?.nlcd : undefined,
+    out = [];
+  const add = (t) => {
+    const name = resolve(t),
       set = name && CLASSES.sets[name];
     if (set?.density && !out.some((o) => o.name === name))
       out.push({ ...set, name, levels: +t["building:levels"] || set.levels });
-  }
-  setCache.set(tags, out);
+  };
+  for (const t of els) if (!("nlcd" in t)) add(nlcd ? { ...t, nlcd } : t);
+  if (!out.length && nlcd) add({ nlcd });
+  setCache.set(key, out);
   return out;
 }
+
+const family = (kind) =>
+  ["pine", "tree", "anytree"].includes(kind) ? "tree" : kind;
 
 const hash = (i, s) => {
   const v = Math.sin(i * 12.9898 + s * 78.233) * 43758.5453;
@@ -223,8 +230,18 @@ export function applyScene(road, scene, P) {
       : null;
   const points = [],
     mapped = {};
-  if (P.mapPoints === "on" && scene.pts)
-    for (const [si, off, tags] of scene.pts) {
+  let pts = scene.pts || [];
+  if (P.lidar === "on" && scene.lidar) {
+    const isTree = (p) => /(^|;)natural=tree(;|$)/.test(p[2]),
+      typed = pts.filter((p) => isTree(p) && /leaf_type=/.test(p[2])),
+      near = (a, b) => Math.hypot((a[0] - b[0]) * scene.step, a[1] - b[1]) < 5;
+    pts = [
+      ...pts.filter((p) => !isTree(p) || typed.includes(p)),
+      ...scene.lidar.filter((l) => !typed.some((o) => near(o, l))),
+    ];
+  }
+  if (P.mapPoints === "on")
+    for (const [si, off, tags] of pts) {
       const i = Math.round((si * scene.step) / road.L),
         t = parseTags(tags),
         name = resolve(t),
@@ -246,9 +263,10 @@ export function applyScene(road, scene, P) {
         kind,
         offset: side * Math.max(1.5, Math.abs(off) - hw),
         meters: parseFloat(t.height) || undefined,
+        width: parseFloat(t.width) || undefined,
         levels: +t["building:levels"] || set.levels,
       });
-      const near = (mapped[kind + side] ||= new Uint8Array(road.n)),
+      const near = (mapped[family(kind) + side] ||= new Uint8Array(road.n)),
         r = Math.round(50 / road.L);
       near.fill(1, Math.max(0, i - r), i + r + 1);
     }
@@ -263,7 +281,7 @@ export function applyScene(road, scene, P) {
       if (road.junc && road.junc[i] & (side < 0 ? 1 : 2)) continue;
       const tags = (side < 0 ? scene.left : scene.right)?.[j] || "",
         slope = (side < 0 ? scene.slopeL : scene.slopeR)?.[j] || 0;
-      const opts = tags ? sets(tags) : [];
+      const opts = tags ? sets(tags, P.nlcd === "on") : [];
       if (!opts.length) opts.push({ sprites: ["bush"], density: 0.08 });
       let total = opts.reduce((a, o) => a + o.density, 0);
       if (slope <= -60) total *= 0.5;
@@ -275,7 +293,14 @@ export function applyScene(road, scene, P) {
         if (pick <= 0) break;
       }
       const kind = o.sprites[Math.floor(hash(i, side + 6) * o.sprites.length)];
-      if (mapped[kind + side]?.[i]) continue;
+      if (mapped[family(kind) + side]?.[i]) continue;
+      if (
+        P.lidar === "on" &&
+        scene.lidar &&
+        scene.lidarCover?.[j] &&
+        family(kind) === "tree"
+      )
+        continue;
       const offset =
           side *
           (o.far ? 8 + hash(i, side + 4) * 20 : 2 + hash(i, side + 4) * 14),

@@ -6,7 +6,13 @@
           "needleleaved": "conifers",
           "broadleaved": "broadleaf",
           "mixed": "forest",
-          "*": "forest"
+          "*": {
+            "nlcd": {
+              "41": "broadleaf",
+              "42": "conifers",
+              "*": "forest"
+            }
+          }
         }
       },
       "tree_row": {
@@ -222,7 +228,20 @@
       }
     },
     "landuse": {
-      "forest": "forest",
+      "forest": {
+        "leaf_type": {
+          "needleleaved": "conifers",
+          "broadleaved": "broadleaf",
+          "mixed": "forest",
+          "*": {
+            "nlcd": {
+              "41": "broadleaf",
+              "42": "conifers",
+              "*": "forest"
+            }
+          }
+        }
+      },
       "wood": "forest",
       "meadow": "meadow",
       "grass": "meadow",
@@ -296,6 +315,24 @@
       "fire_hydrant": "hydrant",
       "phone": null,
       "defibrillator": null
+    },
+    "nlcd": {
+      "11": null,
+      "12": null,
+      "21": "meadow",
+      "22": "meadow",
+      "23": null,
+      "24": null,
+      "31": "rocky",
+      "41": "broadleaf",
+      "42": "conifers",
+      "43": "forest",
+      "52": "scrub",
+      "71": "meadow",
+      "81": "farm",
+      "82": "farm",
+      "90": "broadleaf",
+      "95": "meadow"
     }
   },
   "sets": {

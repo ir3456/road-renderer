@@ -1,6 +1,6 @@
 # /// script
 # requires-python = ">=3.11"
-# dependencies = ["numpy"]
+# dependencies = ["numpy", "laspy[lazrs]", "pyproj", "tifffile", "imagecodecs"]
 # ///
 """Build a scene sidecar for a GPX: roadside tags from OpenStreetMap, side slopes and a real skyline from USGS 3DEP.
 
@@ -9,7 +9,7 @@
 
 Downloads are cached as fixed-grid tiles in <repo>/tiles and shared across rides; a build only fetches tiles it has not seen.
 Any failed download aborts the build; rerun to resume. US only for terrain (3DEP)."""
-import argparse, json, math, os, re, struct, sys, time, urllib.parse, urllib.request
+import argparse, glob, json, math, os, re, struct, sys, time, urllib.parse, urllib.request
 import xml.etree.ElementTree as ET
 import numpy as np
 
@@ -197,7 +197,7 @@ def osm_keys(section, keys):
         if isinstance(v, dict):
             for k, sub in v.items(): keys.add(k); osm_keys(sub, keys)
     return keys
-OSM_KEYS = sorted(osm_keys({'': json.load(open(os.path.join(os.path.dirname(TILES), 'classes.json')))['osm']}, set()))
+OSM_KEYS = sorted({'height', 'width'} | osm_keys({'': json.load(open(os.path.join(os.path.dirname(TILES), 'classes.json')))['osm']}, set()))
 POINT_REACH = 40
 
 
@@ -507,8 +507,8 @@ def parse_tiff(buf):
         src = buf[off + 10 + i * 12:off + 10 + i * 12 + size] if size <= 4 else buf[v:v + size]
         tags[t] = list(struct.unpack(e + fmt * c, src))
     W, H = tags[256][0], tags[257][0]
-    assert tags.get(259, [1])[0] == 1 and tags.get(258, [32])[0] == 32, 'expected uncompressed float32 tiff'
-    dt = np.dtype(e + 'f4'); img = np.full((H, W), np.nan, np.float32)
+    assert tags.get(259, [1])[0] == 1 and tags.get(258, [32])[0] in (8, 32), 'expected uncompressed float32 or uint8 tiff'
+    dt = np.dtype(e + 'f4') if tags.get(258, [32])[0] == 32 else np.dtype('u1'); img = np.full((H, W), np.nan, np.float32)
     if 324 in tags:
         tw, th = tags[322][0], tags[323][0]; across = math.ceil(W / tw)
         for k, (o, c) in enumerate(zip(tags[324], tags[325])):
@@ -524,8 +524,28 @@ def parse_tiff(buf):
     return img
 
 
+NLCD = 'https://www.mrlc.gov/geoserver/mrlc_download/wcs'
+NLCD_LAYER = ('nlcd', 0.02, None)
+
+
+def nlcd_tile(layer, i, j):
+    """USGS NLCD 2021 land cover classes for one 0.02 degree tile, reprojected to lat/lon by the server and resampled to a fixed 80 x 80 grid since the server's pixel count varies by a row or column between tiles."""
+    name, D, _ = layer
+    path = tile_path(name, i, j, 'npy')
+    grid = lambda img: img[np.linspace(0, img.shape[0] - 1, 80).round().astype(int)][:, np.linspace(0, img.shape[1] - 1, 80).round().astype(int)]
+    if os.path.exists(path): return grid(np.load(path))
+    print(f'  {name} tile {i}_{j}', file=sys.stderr)
+    crs = 'http://www.opengis.net/def/crs/EPSG/0/4326'
+    body = fetch(NLCD + '?' + urllib.parse.urlencode([('service', 'WCS'), ('version', '2.0.1'), ('request', 'GetCoverage'), ('coverageId', 'mrlc_download__NLCD_2021_Land_Cover_L48'), ('subset', f'Long({j * D},{(j + 1) * D})'), ('subset', f'Lat({i * D},{(i + 1) * D})'), ('subsettingCrs', crs), ('outputCrs', crs), ('format', 'image/tiff')]))
+    try: img = parse_tiff(body)
+    except Exception: raise SystemExit(f'NLCD failed for tile {i}_{j}; rerun to resume from the tile cache')
+    np.save(path, img); fetched[name] = fetched.get(name, 0) + 1
+    return grid(img)
+
+
 def dem_tile(layer, i, j):
     name, D, px = layer
+    if name == 'nlcd': return nlcd_tile(layer, i, j)
     path = tile_path(name, i, j, 'npy')
     if os.path.exists(path): return np.load(path)
     print(f'  {name} tile {i}_{j}', file=sys.stderr)
@@ -543,6 +563,11 @@ class Dem:
         i0, i1, j0, j1 = math.floor(lat0 / D), math.floor(lat1 / D), math.floor(lon0 / D), math.floor(lon1 / D)
         self.img = np.concatenate([np.concatenate([dem_tile(layer, i, j) for j in range(j0, j1 + 1)], axis=1) for i in range(i1, i0 - 1, -1)], axis=0)
         self.lon0, self.lat0, self.lon1, self.lat1 = j0 * D, i0 * D, (j1 + 1) * D, (i1 + 1) * D
+
+    def nearest(self, lat, lon):
+        H, W = self.img.shape
+        x = np.clip(((lon - self.lon0) / (self.lon1 - self.lon0) * W).astype(int), 0, W - 1); y = np.clip(((self.lat1 - lat) / (self.lat1 - self.lat0) * H).astype(int), 0, H - 1)
+        return self.img[y, x]
 
     def sample(self, lat, lon):
         H, W = self.img.shape
@@ -608,6 +633,25 @@ def build(xs, ys, cos0, a):
             scene['xings'] = [x for x in crossings(hwys, match, xs, ys, signals) if x.pop('lvl') == lvl[x['i']]]
             scene['xings'] = sorted(scene['xings'] + water_crossings(els, cos0, xs, ys), key=lambda x: x['i'])
         print(f'  {len(els)} elements, {len(scene.get("ways", []))} route ways, {len(scene.get("xings", []))} crossings', file=sys.stderr)
+    if not a.no_osm and 'left' in scene:
+        print('USGS NLCD land cover', file=sys.stderr)
+        for key, px, py in (('left', lx, ly), ('right', rx, ry)):
+            la, lo = to_ll(px, py, cos0)
+            codes = Dem(lo.min() - 0.001, la.min() - 0.001, lo.max() + 0.001, la.max() + 0.001, NLCD_LAYER).nearest(la, lo)
+            scene[key] = [s + ('+' if s else '') + f'nlcd={int(c)}' if c == c and c > 0 else s for s, c in zip(scene[key], codes)]
+    if a.lidar and 'left' in scene:
+        import lidar_trees
+        print('Lidar trees', file=sys.stderr)
+        la, lo = to_ll(xs, ys, cos0)
+        trees, covered = lidar_trees.trees_near(la, lo, POINT_REACH)
+        nlcd_leaf, cut = {41: 'broadleaved', 42: 'needleleaved', 90: 'broadleaved'}, {41: 0.75, 42: 0.4}
+        leaf = lambda p, c: nlcd_leaf.get(c) if p is None else 'needleleaved' if p >= cut.get(c, 0.7) else 'broadleaved'
+        nl = Dem(min(t[1] for t in trees) - 0.001, min(t[0] for t in trees) - 0.001, max(t[1] for t in trees) + 0.001, max(t[0] for t in trees) + 0.001, NLCD_LAYER).nearest(np.array([t[0] for t in trees]), np.array([t[1] for t in trees])) if trees else []
+        types = [leaf(t[4], int(c) if c == c else 0) for t, c in zip(trees, nl)]
+        scene['lidar'] = osm_points([{'type': 'node', 'lat': a_, 'lon': o_, 'tags': {'natural': 'tree', 'height': str(h), 'width': str(w), **({'leaf_type': lt} if lt else {})}} for (a_, o_, h, w, _), lt in zip(trees, types)], xs, ys, cos0, hx, hy, nx, ny)
+        mx, my = lidar_trees.merc(la, lo)
+        scene['lidarCover'] = [int((int(x // lidar_trees.TILE), int(y // lidar_trees.TILE)) in covered) for x, y in zip(mx, my)]
+        print(f'  {len(scene["lidar"])} lidar trees within {POINT_REACH} m, {sum(scene["lidarCover"])} of {len(xs)} samples covered', file=sys.stderr)
     if not a.no_terrain:
         print('USGS 3DEP', file=sys.stderr)
         pl, pr = side_slopes(xs, ys, cos0, nx, ny)
@@ -619,7 +663,7 @@ def build(xs, ys, cos0, a):
 
 def main():
     """Builds the scene in passes over growing prefixes of the route, about one OSM tile apart, writing the file after each pass that had to download tiles, so a ride is playable while the rest is still arriving; the last pass is the whole route."""
-    ap = argparse.ArgumentParser(); ap.add_argument('gpx'); ap.add_argument('--no-osm', action='store_true'); ap.add_argument('--no-terrain', action='store_true')
+    ap = argparse.ArgumentParser(); ap.add_argument('gpx'); ap.add_argument('--no-osm', action='store_true'); ap.add_argument('--no-terrain', action='store_true'); ap.add_argument('--lidar', action='store_true', help='detect individual trees from the newest lidar along the route, typed by crown shape and NLCD')
     a = ap.parse_args()
     lat, lon = read_gpx(a.gpx)
     xs, ys, s, cos0 = resample(lat, lon, STEP)

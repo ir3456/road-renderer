@@ -321,6 +321,20 @@ export const LEVERS = [
     rebuild: true,
   },
   {
+    key: "nlcd",
+    label: "USGS land cover (NLCD) for trees",
+    options: { on: "On", off: "Off" },
+    def: "on",
+    rebuild: true,
+  },
+  {
+    key: "lidar",
+    label: "Lidar trees (Build scene downloads point clouds)",
+    options: { on: "On", off: "Off" },
+    def: "off",
+    rebuild: true,
+  },
+  {
     key: "juncMin",
     label: "Smallest side road drawn",
     options: {
