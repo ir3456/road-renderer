@@ -41,8 +41,8 @@
         position: absolute;
         right: 10px;
         top: 10px;
-        width: 180px;
-        height: 180px;
+        width: 270px;
+        height: 270px;
         cursor: pointer;
         background: #222;
         border: 1px solid #444;
@@ -51,10 +51,10 @@
       }
       #map {
         position: absolute;
-        left: -38px;
-        top: -38px;
-        width: 256px;
-        height: 256px;
+        left: -57px;
+        top: -57px;
+        width: 384px;
+        height: 384px;
         background: #222;
       }
       #mmN {
@@ -88,6 +88,23 @@
         font-variant-numeric: tabular-nums;
         white-space: pre;
         line-height: 1.5;
+      }
+      #sign {
+        position: absolute;
+        left: 10px;
+        bottom: 10px;
+        padding: 4px 14px;
+        background: #0b6b3a;
+        color: #fff;
+        border: 2px solid #fff;
+        outline: 2px solid #0b6b3a;
+        border-radius: 5px;
+        font:
+          600 20px/1.2 Helvetica,
+          Arial,
+          sans-serif;
+        letter-spacing: 0.5px;
+        pointer-events: none;
       }
       #drop {
         position: absolute;
@@ -316,6 +333,7 @@
       <div id="view">
         <canvas id="road"></canvas>
         <div id="hud"></div>
+        <div id="sign" hidden></div>
         <div id="minimap">
           <div id="map"></div>
           <div id="mmN">N</div>
@@ -1115,6 +1133,9 @@
           `Map data:       ${dir}   ${(road.ele[i] * FT).toFixed(0)} ft   ${grade.toFixed(1)}%` +
           ghostLine +
           `\nGPX file data:  ${(playerZ / MI).toFixed(2)} / ${(road.total / MI).toFixed(2)} mi   ${((playerZ / road.total) * 100).toFixed(0)}%   lap ${laps + 1}`;
+        const name = road.name?.[i] || "";
+        if ($("sign").textContent !== name) $("sign").textContent = name;
+        $("sign").hidden = !name;
         minimap.update(
           frame.pos.x,
           frame.pos.y,
