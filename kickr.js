@@ -9,6 +9,7 @@ export const live = {
   hrDevice: null,
 };
 let cp = null,
+  wanted = new Set(),
   queue = Promise.resolve(),
   listener = () => {};
 /** Called after every bike-data notification; these keep arriving in a background tab, unlike animation frames. */
@@ -73,13 +74,27 @@ export function setGrade(pct, crr, cw, k = 1) {
   return g;
 }
 
+export const ready = () => !!cp;
+
 export function hr() {
-  return performance.now() - live.hrAt > 5000 ? 0 : live.hr;
+  return performance.now() - live.hrAt > 10000 ? 0 : live.hr;
+}
+
+/** Runs subscribe now and again after every drop the user didn't ask for, retrying every 3 s. */
+async function keepConnected(device, subscribe, onLost) {
+  device.addEventListener("gattserverdisconnected", async () => {
+    onLost(wanted.has(device));
+    while (wanted.has(device) && !device.gatt.connected)
+      await subscribe().catch(() => new Promise((r) => setTimeout(r, 3000)));
+  });
+  await subscribe();
+  wanted.add(device);
 }
 
 /** Any standard Bluetooth heart rate sensor, such as a chest strap or a phone relaying AirPods. */
 export async function connectHr(onStatus) {
   if (live.hrDevice) {
+    wanted.delete(live.hrDevice);
     live.hrDevice.gatt.disconnect();
     return;
   }
@@ -92,22 +107,26 @@ export async function connectHr(onStatus) {
     const device = await navigator.bluetooth.requestDevice({
       filters: [{ services: [0x180d] }],
     });
-    device.addEventListener("gattserverdisconnected", () => {
-      live.hrDevice = null;
-      live.hr = 0;
-      onStatus("HR disconnected");
-    });
-    const data = await (
-      await (await device.gatt.connect()).getPrimaryService(0x180d)
-    ).getCharacteristic(0x2a37);
-    data.addEventListener("characteristicvaluechanged", (e) => {
-      const dv = e.target.value;
-      live.hr = dv.getUint8(0) & 1 ? dv.getUint16(1, true) : dv.getUint8(1);
-      live.hrAt = performance.now();
-    });
-    await data.startNotifications();
+    await keepConnected(
+      device,
+      async () => {
+        const data = await (
+          await (await device.gatt.connect()).getPrimaryService(0x180d)
+        ).getCharacteristic(0x2a37);
+        data.addEventListener("characteristicvaluechanged", (e) => {
+          const dv = e.target.value;
+          live.hr = dv.getUint8(0) & 1 ? dv.getUint16(1, true) : dv.getUint8(1);
+          live.hrAt = performance.now();
+        });
+        await data.startNotifications();
+        onStatus(`HR: ${device.name || "sensor"}`);
+      },
+      (retry) => {
+        if (!retry) live.hrDevice = null;
+        onStatus(retry ? "HR lost, reconnecting…" : "HR disconnected");
+      },
+    );
     live.hrDevice = device;
-    onStatus(`HR: ${device.name || "sensor"}`);
   } catch (err) {
     onStatus(
       err.name === "NotFoundError"
@@ -119,6 +138,7 @@ export async function connectHr(onStatus) {
 
 export async function connect(onStatus, onDisconnect) {
   if (live.device) {
+    wanted.delete(live.device);
     live.device.gatt.disconnect();
     return;
   }
@@ -131,22 +151,29 @@ export async function connect(onStatus, onDisconnect) {
     const device = await navigator.bluetooth.requestDevice({
       filters: [{ services: [0x1826] }],
     });
-    device.addEventListener("gattserverdisconnected", () => {
-      live.device = null;
-      cp = null;
-      onStatus("Disconnected");
-      onDisconnect();
-    });
-    const srv = await (await device.gatt.connect()).getPrimaryService(0x1826);
-    const data = await srv.getCharacteristic(0x2ad2);
-    await data.startNotifications();
-    data.addEventListener("characteristicvaluechanged", onBikeData);
-    cp = await srv.getCharacteristic(0x2ad9);
-    await cp.startNotifications();
-    await write(Uint8Array.of(0x00));
-    await write(Uint8Array.of(0x07));
-    live.device = device;
-    onStatus(`Connected: ${device.name || "trainer"}`);
+    await keepConnected(
+      device,
+      async () => {
+        const srv = await (
+          await device.gatt.connect()
+        ).getPrimaryService(0x1826);
+        const data = await srv.getCharacteristic(0x2ad2);
+        await data.startNotifications();
+        data.addEventListener("characteristicvaluechanged", onBikeData);
+        cp = await srv.getCharacteristic(0x2ad9);
+        await cp.startNotifications();
+        await write(Uint8Array.of(0x00));
+        await write(Uint8Array.of(0x07));
+        live.device = device;
+        onStatus(`Connected: ${device.name || "trainer"}`);
+      },
+      (retry) => {
+        cp = null;
+        if (!retry) live.device = null;
+        onStatus(retry ? "Trainer lost, reconnecting…" : "Disconnected");
+        onDisconnect();
+      },
+    );
   } catch (err) {
     onStatus(
       err.name === "NotFoundError"

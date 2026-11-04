@@ -1181,6 +1181,7 @@
           },
           () => {
             if (modeSel.value === "live") playing = false;
+            lastPowerSent = lastGradeSent = null;
           },
         );
       addEventListener("keydown", (e) => {
@@ -1329,11 +1330,11 @@
         const target =
           erg &&
           workoutAt(ride.workout, clock, P.ftp, P.ergPct, P.ergMin).watts;
-        if (target != null && kickr.live.device) {
+        if (target != null && kickr.ready()) {
           if (target !== lastPowerSent) kickr.setPower(target);
           lastPowerSent = target;
           lastGradeSent = null;
-        } else if (modeSel.value === "live" && kickr.live.device) {
+        } else if (modeSel.value === "live" && kickr.ready()) {
           lastPowerSent = null;
           const key = `${gradeNow}|${gearK()}|${P.crr}|${P.cda}`;
           if (key !== lastGradeSent) {
