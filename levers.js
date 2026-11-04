@@ -392,7 +392,7 @@ export const LEVERS = [
     def: 70,
   },
   {
-    key: "mass",
+    key: "kg",
     label: "Rider + bike weight (kg), for route speed from watts",
     min: 40,
     max: 150,
