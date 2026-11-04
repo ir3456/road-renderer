@@ -353,6 +353,7 @@
             <div id="tabs"></div>
             <div id="pages">
               <div class="page" id="ridePage">
+                <div id="wsel" hidden></div>
                 <div id="list">
                   <div id="favs"></div>
                   <details>
@@ -476,6 +477,7 @@
       import { drawBars, drawGauge } from "./hud.js";
       import { createMinimap } from "./minimap.js";
       import { createProfile } from "./profile.js";
+      import { parseZwo, workoutAt } from "./workout.js";
 
       const $ = (id) => document.getElementById(id);
       const canvas = $("road"),
@@ -524,6 +526,8 @@
       let ride = null,
         gradeNow = 0,
         lastGradeSent = null,
+        lastPowerSent = null,
+        workout = null,
         liveV = 0;
       const minimap = createMinimap($("map"), $("mmN"));
       const profile = createProfile($("profile"), seek);
@@ -549,6 +553,70 @@
         t.btn = b;
       }
       pages[0].btn.click();
+      const wPage = pages.find((t) => t.name === "Workout"),
+        wlist = document.createElement("div");
+      wPage.page.prepend(wlist);
+      /** Plans are folders of .zwo files in workouts/; the first workout not yet done is highlighted. */
+      async function listWorkouts() {
+        const list = await fetch("workouts.json")
+            .then((r) => r.json())
+            .catch(() => []),
+          plans = [...new Set(list.map((w) => w.path.split("/")[1]))];
+        wlist.innerHTML = list.length
+          ? ""
+          : "<p>No workouts yet: put a plan's .zwo files in <code>workouts/&lt;plan name&gt;/</code>.</p>";
+        for (const plan of plans) {
+          const h = document.createElement("h3"),
+            ws = list.filter((w) => w.path.split("/")[1] === plan),
+            next = ws.find((w) => !w.done);
+          h.textContent = plan;
+          wlist.appendChild(h);
+          for (const w of ws) {
+            const d = document.createElement("div"),
+              b = document.createElement("button"),
+              file = w.path
+                .split("/")
+                .pop()
+                .replace(/\.zwo$/i, "");
+            d.className =
+              "ride" + (w === next || w.path === workout?.path ? " on" : "");
+            b.innerHTML = `${w.done ? "✓ " : ""}${file}<span></span>`;
+            fetch(enc(w.path))
+              .then((r) => r.text())
+              .then((t) => {
+                const z = parseZwo(t);
+                b.querySelector("span").textContent =
+                  `${fmt(z.total)}${w.path === workout?.path ? " · selected" : ""}`;
+                b.onclick = () => {
+                  workout = { ...z, path: w.path, name: z.name || file };
+                  showWorkout();
+                  listWorkouts();
+                  pages[0].btn.click();
+                };
+              });
+            d.appendChild(b);
+            wlist.appendChild(d);
+          }
+        }
+      }
+      function showWorkout() {
+        $("wsel").hidden = !workout;
+        $("wsel").innerHTML = workout
+          ? `Workout: <b>${workout.name}</b> (${fmt(workout.total)}), now pick a route `
+          : "";
+        if (workout) {
+          const b = document.createElement("button");
+          b.textContent = "Clear workout";
+          b.onclick = () => {
+            workout = null;
+            showWorkout();
+            listWorkouts();
+          };
+          $("wsel").appendChild(b);
+        }
+        if (road) profile.draw(road, workout);
+      }
+      listWorkouts();
       $("resetBtn").onclick = () => {
         resetLevers();
         buildRoad();
@@ -765,7 +833,7 @@
         else placeholderScene(road, P);
         if (P.warnSigns === "on") warnSigns(road);
         playerZ = Math.min(playerZ, road.total - 1);
-        profile.draw(road);
+        profile.draw(road, workout);
       }
       function loadText(text) {
         clearInterval(sceneWatch);
@@ -986,10 +1054,13 @@
             ele: road.ele[Math.min(road.n - 1, Math.floor(z / road.L))],
           };
         };
-        const gpx = toGpx(ride, track.name || "Ride", posAt),
+        const title = ride.workout
+            ? `${ride.workout.name} on ${track.name || "ride"}`
+            : track.name || "Ride",
+          gpx = toGpx(ride, title, posAt),
           d = new Date(ride.startedAt),
           pad = (n) => String(n).padStart(2, "0");
-        const name = `${(track.name || "ride").replace(/[^\w\- ]+/g, "").trim()} ${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}${pad(d.getMinutes())}.gpx`;
+        const name = `${title.replace(/[^\w\- ]+/g, "").trim()} ${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}${pad(d.getMinutes())}.gpx`;
         endRide();
         await fetch("upload?f=" + encodeURIComponent("rides/" + name), {
           method: "POST",
@@ -1002,6 +1073,16 @@
         a.download = name;
         a.click();
         URL.revokeObjectURL(a.href);
+      }
+      async function workoutDone() {
+        setPlaying(false);
+        ride.free = true;
+        fetch("done?f=" + encodeURIComponent(ride.workout.path), {
+          method: "POST",
+        }).then(listWorkouts);
+        const a = await ask("Workout complete.", ["Finish", "Keep riding"]);
+        if (a === "Finish") finishRide();
+        else setPlaying(true);
       }
       async function rideDone() {
         setPlaying(false);
@@ -1025,6 +1106,8 @@
       rideBtn.onclick = () => {
         if (!road) return;
         ride = startRide();
+        ride.workout = workout;
+        lastPowerSent = lastGradeSent = null;
         clock = ridden = laps = 0;
         rideBtn.hidden = true;
         finishBtn.hidden = false;
@@ -1107,6 +1190,13 @@
         } else if (e.code === "ArrowDown") {
           e.preventDefault();
           speedIn.value = Math.max(1, +speedIn.value - 5);
+        } else if (e.key === "[" || e.key === "]") {
+          P.ergPct = Math.max(
+            50,
+            Math.min(130, P.ergPct + (e.key === "]" ? 5 : -5)),
+          );
+          saveLevers();
+          syncLeverUI();
         } else if (e.key === "g") snapGhost();
         else if (e.key === ",") shift(-1);
         else if (e.key === ".") shift(1);
@@ -1123,6 +1213,12 @@
       }
       addEventListener("resize", resize);
       resize();
+      function workoutLine() {
+        if (!workout) return "";
+        const at = workoutAt(workout, clock, P.ftp, P.ergPct, P.ergMin),
+          step = at.i < 0 ? "done" : `${at.i + 1}/${workout.steps.length}`;
+        return `\nWorkout:        ${step}  ${at.watts ? at.watts + " W" : "free"} ${fmt(Math.max(0, at.left))}${at.next != null ? ` → ${at.next} W` : ""}  ${fmt(Math.max(0, workout.total - clock))} left  ${P.ergPct}%`;
+      }
       function drawHud(frame) {
         const i = frame.base,
           grade = ((road.ele[i + 1] - road.ele[i]) / road.L) * 100,
@@ -1146,6 +1242,7 @@
           `Current data:   ${mph(speedNow())}   ${kickr.live.power} W   ${kickr.live.cadence} rpm${kickr.live.hrDevice ? `   ${kickr.hr()} bpm` : ""}${P.trainerSetup === "cassette" ? "" : `   ${P.virtRing}×${P.virtCog}`}\n` +
           `Map data:       ${dir}   ${(road.ele[i] * FT).toFixed(0)} ft   ${grade.toFixed(1)}%` +
           ghostLine +
+          workoutLine() +
           `\nGPX file data:  ${(playerZ / MI).toFixed(2)} / ${(road.total / MI).toFixed(2)} mi   ${((playerZ / road.total) * 100).toFixed(0)}%   lap ${laps + 1}`;
         const name = road.name?.[i] || "";
         if ($("sign").textContent !== name) $("sign").textContent = name;
@@ -1172,7 +1269,8 @@
                 1000
               : 0
             : kickr.speed() / gearK();
-        liveV += (vRaw - liveV) * Math.min(1, dt * 2);
+        const erg = ride?.workout && !ride.free;
+        if (!erg) liveV += (vRaw - liveV) * Math.min(1, dt * 2);
         if (!road) return;
         const gi = Math.min(road.n - 2, Math.floor(playerZ / road.L)),
           gj = Math.min(road.n - 1, gi + Math.round(20 / road.L));
@@ -1180,6 +1278,18 @@
           Math.round(
             ((road.ele[gj] - road.ele[gi]) / ((gj - gi) * road.L)) * 200,
           ) / 2;
+        if (erg) {
+          const g = gradeNow / 100,
+            v = Math.max(liveV, 1);
+          liveV = Math.max(
+            0,
+            liveV +
+              ((kickr.speed() ? kickr.live.power / v : 0) / P.mass -
+                9.81 * (P.crr + g) -
+                (0.5 * P.cda * v * v) / P.mass) *
+                dt,
+          );
+        }
         if (!playing) return;
         rideT += dt;
         ghostT += (dt * ghostPct.value) / 100;
@@ -1189,13 +1299,22 @@
         if (ride) record(ride, playerZ, kickr.live);
         if (playerZ >= road.total - 1) {
           laps++;
-          $("repeat").checked
+          $("repeat").checked || erg
             ? seekNow(0)
             : ride
               ? rideDone()
               : setPlaying(false);
         }
-        if (modeSel.value === "live" && kickr.live.device) {
+        if (erg && clock >= ride.workout.total) workoutDone();
+        const target =
+          erg &&
+          workoutAt(ride.workout, clock, P.ftp, P.ergPct, P.ergMin).watts;
+        if (target != null && kickr.live.device) {
+          if (target !== lastPowerSent) kickr.setPower(target);
+          lastPowerSent = target;
+          lastGradeSent = null;
+        } else if (modeSel.value === "live" && kickr.live.device) {
+          lastPowerSent = null;
           const key = `${gradeNow}|${gearK()}|${P.crr}|${P.cda}`;
           if (key !== lastGradeSent) {
             kickr.setGrade(gradeNow, P.crr, P.cda, gearK());
@@ -1228,7 +1347,12 @@
             });
           scrub.value = (playerZ / road.total) * 1000;
           posEl.innerHTML = `<b>${(playerZ / MI).toFixed(2)}</b> mi &nbsp; <b>${(speedNow() / MPH).toFixed(0)}</b> mph &nbsp; <b>${fmt(rideT)}</b>`;
-          profile.marker(playerZ, ghostZ);
+          profile.marker(
+            workout
+              ? (Math.min(clock, workout.total) / workout.total) * road.total
+              : playerZ,
+            workout ? null : ghostZ,
+          );
         }
         if (theme) {
           const fr = render(

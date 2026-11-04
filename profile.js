@@ -4,7 +4,7 @@ export function createProfile(canvas, onSeek) {
   let road = null,
     img = null,
     drag = false;
-  function draw(r) {
+  function draw(r, workout = null) {
     road = r;
     canvas.width = canvas.clientWidth * devicePixelRatio;
     canvas.height = canvas.clientHeight * devicePixelRatio;
@@ -13,6 +13,33 @@ export function createProfile(canvas, onSeek) {
     ctx.clearRect(0, 0, W, H);
     if (!road) {
       img = null;
+      return;
+    }
+    if (workout) {
+      const top = Math.max(1.2, ...workout.steps.map((s) => s.hi ?? 0.5));
+      for (const s of workout.steps) {
+        const y = (u) => H - ((u ?? 0.5) / top) * (H - 4),
+          x0 = (s.start / workout.total) * W,
+          x1 = ((s.start + s.dur) / workout.total) * W,
+          u = Math.max(s.lo ?? 0.5, s.hi ?? 0.5);
+        ctx.fillStyle =
+          s.lo == null
+            ? "#555"
+            : u < 0.6
+              ? "#4a7"
+              : u < 0.9
+                ? "#ca4"
+                : u < 1.05
+                  ? "#e84"
+                  : "#d44";
+        ctx.beginPath();
+        ctx.moveTo(x0, H);
+        ctx.lineTo(x0, y(s.lo));
+        ctx.lineTo(x1, y(s.hi));
+        ctx.lineTo(x1, H);
+        ctx.fill();
+      }
+      img = ctx.getImageData(0, 0, W, H);
       return;
     }
     let lo = Infinity,

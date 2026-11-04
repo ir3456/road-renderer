@@ -5,6 +5,13 @@ build = {'path': None, 'log': [], 'proc': None}
 def rides():
     return sorted(glob.glob('routes/*.gpx') + glob.glob('routes/favorites/*.gpx'))
 
+def workouts():
+    return sorted(glob.glob('workouts/*/*.zwo'))
+
+def done_of(path):
+    f = os.path.join(os.path.dirname(path), 'done.json')
+    return f, json.load(open(f)) if os.path.exists(f) else []
+
 def scene_of(path):
     return os.path.join('routes', 'scenes', os.path.basename(path)[:-4] + '.scene.json')
 
@@ -30,6 +37,8 @@ class H(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
         if self.path == '/rides.json':
             return self.reply([{'path': p, 'scene': os.path.exists(scene_of(p)), 'fav': p.startswith('routes/favorites/')} for p in rides()])
+        if self.path == '/workouts.json':
+            return self.reply([{'path': p, 'done': os.path.basename(p) in done_of(p)[1]} for p in workouts()])
         if self.path == '/build.json':
             p = build['proc']
             return self.reply({'path': build['path'], 'log': build['log'][-12:], 'running': p is not None and p.poll() is None, 'code': p and p.poll()})
@@ -49,6 +58,10 @@ class H(http.server.SimpleHTTPRequestHandler):
             new = os.path.join('routes', os.path.basename(path)) if path.startswith('routes/favorites/') else os.path.join('routes', 'favorites', os.path.basename(path))
             os.makedirs(os.path.dirname(new), exist_ok=True); os.rename(path, new)
             return self.reply({'path': new})
+        if self.path.startswith('/done?f=') and path in workouts():
+            f, done = done_of(path)
+            json.dump(sorted(set(done) | {os.path.basename(path)}), open(f, 'w'))
+            return self.reply({'ok': True})
         if self.path.startswith('/upload?f=') and path.endswith('.gpx') and os.path.dirname(path) in ('routes', 'rides') and os.path.basename(path) == path.split('/')[1]:
             os.makedirs(os.path.dirname(path), exist_ok=True)
             open(path, 'wb').write(self.rfile.read(int(self.headers['Content-Length'])))

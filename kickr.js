@@ -50,6 +50,15 @@ export function speed() {
   return performance.now() - live.at > 3000 ? 0 : live.speed;
 }
 
+/** ERG: the trainer holds this many watts whatever the cadence, until the next setGrade. */
+export function setPower(watts) {
+  if (!cp) return;
+  const b = new DataView(new ArrayBuffer(3));
+  b.setUint8(0, 0x05);
+  b.setInt16(1, Math.round(watts), true);
+  write(b.buffer);
+}
+
 export function setGrade(pct, crr, cw, k = 1) {
   const g = Math.max(-20, Math.min(20, pct / k));
   if (cp) {
