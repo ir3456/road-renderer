@@ -466,7 +466,7 @@
       import { placeholderScene, applyScene, warnSigns } from "./scene.js";
       import { makeGhost } from "./ghost.js";
       import * as kickr from "./kickr.js";
-      import { startRide, record, toGpx } from "./ride.js";
+      import { startRide, record, toFit, toGpx } from "./ride.js";
       import {
         P,
         initLevers,
@@ -1078,22 +1078,18 @@
             syncLeverUI();
           }
         }
-        const title = ride.workout
-            ? `${ride.workout.name} on ${track.name || "ride"}`
-            : track.name || "Ride",
-          gpx = toGpx(ride, title, posAt),
+        const title = ride.workout?.name || track.name || "Ride",
+          body = ride.workout ? toFit(ride) : toGpx(ride, title, posAt),
           d = new Date(ride.startedAt),
           pad = (n) => String(n).padStart(2, "0");
-        const name = `${title.replace(/[^\w\- ]+/g, "").trim()} ${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}${pad(d.getMinutes())}.gpx`;
+        const name = `${title.replace(/[^\w\- ]+/g, "").trim()} ${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}${pad(d.getMinutes())}.${ride.workout ? "fit" : "gpx"}`;
         endRide();
         await fetch("upload?f=" + encodeURIComponent("rides/" + name), {
           method: "POST",
-          body: gpx,
+          body,
         }).catch(() => {});
         const a = document.createElement("a");
-        a.href = URL.createObjectURL(
-          new Blob([gpx], { type: "application/gpx+xml" }),
-        );
+        a.href = URL.createObjectURL(new Blob([body]));
         a.download = name;
         a.click();
         URL.revokeObjectURL(a.href);
@@ -1320,7 +1316,7 @@
         clock += dt;
         ridden += speedNow() * dt;
         setZ(playerZ + speedNow() * dt);
-        if (ride) record(ride, playerZ, kickr.live);
+        if (ride) record(ride, playerZ, kickr.live, ridden);
         if (playerZ >= road.total - 1) {
           laps++;
           $("repeat").checked || erg

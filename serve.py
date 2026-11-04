@@ -62,7 +62,7 @@ class H(http.server.SimpleHTTPRequestHandler):
             f, done = done_of(path)
             json.dump(sorted(set(done) | {os.path.basename(path)}), open(f, 'w'))
             return self.reply({'ok': True})
-        if self.path.startswith('/upload?f=') and path.endswith('.gpx') and os.path.dirname(path) in ('routes', 'rides') and os.path.basename(path) == path.split('/')[1]:
+        if self.path.startswith('/upload?f=') and path.endswith(('.gpx', '.fit')) and os.path.dirname(path) in ('routes', 'rides') and os.path.basename(path) == path.split('/')[1]:
             os.makedirs(os.path.dirname(path), exist_ok=True)
             open(path, 'wb').write(self.rfile.read(int(self.headers['Content-Length'])))
             return self.reply({'path': path})
