@@ -602,7 +602,7 @@
       function showWorkout() {
         $("wsel").hidden = !workout;
         $("wsel").innerHTML = workout
-          ? `Workout: <b>${workout.name}</b> (${fmt(workout.total)}), now pick a route `
+          ? `Workout: <b>${workout.name}</b> (${fmt(workout.total)}), now pick a route ${workout.desc ? `<div>${workout.desc}</div>` : ""}`
           : "";
         if (workout) {
           const b = document.createElement("button");
@@ -1054,6 +1054,30 @@
             ele: road.ele[Math.min(road.n - 1, Math.floor(z / road.L))],
           };
         };
+        if (/ramp test/i.test(ride.workout?.name)) {
+          const pw = ride.samples.map((s) => s[2]);
+          let best = 0;
+          for (let i = 60; i <= pw.length; i++)
+            best = Math.max(
+              best,
+              pw.slice(i - 60, i).reduce((a, b) => a + b, 0) / 60,
+            );
+          fetch("done?f=" + encodeURIComponent(ride.workout.path), {
+            method: "POST",
+          }).then(listWorkouts);
+          const ftp = Math.round(0.75 * best);
+          if (
+            ftp &&
+            (await ask(
+              `Best minute ${Math.round(best)} W, so FTP ≈ ${ftp} W (now ${P.ftp} W).`,
+              [`Set FTP to ${ftp} W`, `Keep ${P.ftp} W`],
+            )) === `Set FTP to ${ftp} W`
+          ) {
+            P.ftp = ftp;
+            saveLevers();
+            syncLeverUI();
+          }
+        }
         const title = ride.workout
             ? `${ride.workout.name} on ${track.name || "ride"}`
             : track.name || "Ride",

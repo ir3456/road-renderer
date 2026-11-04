@@ -1,4 +1,4 @@
-/** A Zwift .zwo workout as steps of { start, dur, lo, hi } in seconds and fractions of FTP; lo/hi null for free ride. */
+/** A Zwift .zwo workout: name, description and steps of { start, dur, lo, hi } in seconds and fractions of FTP; lo/hi null for free ride. */
 export function parseZwo(text) {
   const num = (attrs, k) => {
       const m = attrs.match(new RegExp(`\\b${k}="([^"]*)"`, "i"));
@@ -27,8 +27,9 @@ export function parseZwo(text) {
       add(dur, Math.max(lo, hi), Math.min(lo, hi));
     } else add(dur, num(a, "PowerLow"), num(a, "PowerHigh"));
   }
-  const name = text.match(/<name>([^<]*)<\/name>/i)?.[1].trim();
-  return { name, steps, total: start };
+  const tag = (k) =>
+    text.match(new RegExp(`<${k}>([^<]*)</${k}>`, "i"))?.[1].trim();
+  return { name: tag("name"), desc: tag("description"), steps, total: start };
 }
 
 /** The step at t seconds, its target watts (null on free ride) after intensity and the floor, and the seconds left in it. */
