@@ -1300,11 +1300,12 @@
           ) / 2;
         if (erg) {
           const g = gradeNow / 100,
-            v = Math.max(liveV, 1);
+            v = Math.max(liveV, 0.2);
           liveV = Math.max(
             0,
             liveV +
-              ((kickr.speed() ? kickr.live.power / v : 0) / P.mass -
+              ((now - kickr.live.at < 3000 ? kickr.live.power / v : 0) /
+                P.mass -
                 9.81 * (P.crr + g) -
                 (0.5 * P.cda * v * v) / P.mass) *
                 dt,
