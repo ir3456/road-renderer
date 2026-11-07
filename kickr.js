@@ -118,6 +118,8 @@ export async function connectHr(onStatus) {
           live.hr = dv.getUint8(0) & 1 ? dv.getUint16(1, true) : dv.getUint8(1);
           live.hrAt = performance.now();
         });
+        live.hr = 0;
+        live.hrAt = performance.now();
         await data.startNotifications();
         onStatus(`HR: ${device.name || "sensor"}`);
       },
@@ -127,6 +129,11 @@ export async function connectHr(onStatus) {
       },
     );
     live.hrDevice = device;
+    const watch = setInterval(() => {
+      if (!wanted.has(device)) clearInterval(watch);
+      else if (device.gatt.connected && performance.now() - live.hrAt > 15000)
+        device.gatt.disconnect();
+    }, 5000);
   } catch (err) {
     onStatus(
       err.name === "NotFoundError"
