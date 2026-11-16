@@ -1322,7 +1322,7 @@
         clock += dt;
         ridden += speedNow() * dt;
         setZ(playerZ + speedNow() * dt);
-        if (ride) record(ride, playerZ, kickr.live, ridden);
+        if (ride) record(ride, playerZ, kickr.live);
         if (playerZ >= road.total - 1) {
           laps++;
           $("repeat").checked || erg

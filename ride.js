@@ -2,7 +2,7 @@ export function startRide() {
   return { startedAt: Date.now(), samples: [], lastSample: 0 };
 }
 
-export function record(ride, z, live, dist) {
+export function record(ride, z, live) {
   const now = Date.now();
   if (now - ride.lastSample < 1000) return;
   ride.lastSample = now - ride.lastSample < 2000 ? ride.lastSample + 1000 : now;
@@ -11,8 +11,7 @@ export function record(ride, z, live, dist) {
     z,
     live.power,
     live.cadence,
-    performance.now() - live.hrAt > 5000 ? 0 : live.hr,
-    dist,
+    performance.now() - live.hrAt > 10000 ? 0 : live.hr,
   ]);
 }
 
@@ -53,17 +52,15 @@ export function toFit(ride) {
   const s = ride.samples,
     t0 = T(s[0][0]),
     t1 = T(s[s.length - 1][0]),
-    dist = Math.round(s[s.length - 1][5] * 100),
     secs = (t1 - t0) * 1000;
   msg(0, 0, [
     [0, 1, 4],
     [1, 2, 255],
     [4, 4, t0],
   ]);
-  for (const [ts, , pw, cad, hr, d] of s)
+  for (const [ts, , pw, cad, hr] of s)
     msg(1, 20, [
       [253, 4, T(ts)],
-      [5, 4, Math.round(d * 100)],
       [7, 2, Math.round(pw)],
       [4, 1, Math.round(cad)],
       [3, 1, hr || 255],
@@ -73,7 +70,6 @@ export function toFit(ride) {
     [2, 4, t0],
     [7, 4, secs],
     [8, 4, secs],
-    [9, 4, dist],
   ];
   msg(2, 19, totals);
   msg(3, 18, [...totals, [5, 1, 2], [6, 1, 6], [25, 2, 0], [26, 2, 1]]);
