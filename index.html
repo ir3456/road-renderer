@@ -1097,6 +1097,8 @@
       async function workoutDone() {
         setPlaying(false);
         ride.free = true;
+        if (window.Notification?.permission === "granted")
+          new Notification("Workout complete", { requireInteraction: true });
         fetch("done?f=" + encodeURIComponent(ride.workout.path), {
           method: "POST",
         }).then(listWorkouts);
@@ -1106,6 +1108,8 @@
       }
       async function rideDone() {
         setPlaying(false);
+        if (window.Notification?.permission === "granted")
+          new Notification("Route complete", { requireInteraction: true });
         const a = await ask("Route complete.", [
           "Restart",
           "Join elsewhere",
@@ -1125,6 +1129,7 @@
       };
       rideBtn.onclick = () => {
         if (!road) return;
+        window.Notification?.requestPermission();
         ride = startRide();
         ride.workout = workout;
         lastPowerSent = lastGradeSent = null;
